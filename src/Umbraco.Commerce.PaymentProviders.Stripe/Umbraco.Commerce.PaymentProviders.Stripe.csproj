@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Title>Umbraco Commerce Stripe Payment Provider</Title>
+    <Description>Stripe payment provider for Umbraco Commerce</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Stripe.net" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Client"  />
+    <PackageReference Include="Umbraco.Commerce.Core" />
+  </ItemGroup>
+
+</Project>
