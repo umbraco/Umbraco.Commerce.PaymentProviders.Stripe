@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Umbraco.Commerce.Common.Logging;
 using Umbraco.Commerce.Core.Api;
@@ -56,7 +57,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return ctx.Settings.ErrorUrl;
         }
 
-        public override async Task<OrderReference> GetOrderReferenceAsync(PaymentProviderContext<TSettings> ctx)
+        public override async Task<OrderReference> GetOrderReferenceAsync(PaymentProviderContext<TSettings> ctx, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -65,7 +66,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                 ConfigureStripe(secretKey);
 
-                var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret).ConfigureAwait(false);
+                var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret, cancellationToken).ConfigureAwait(false);
                 if (stripeEvent != null && stripeEvent.Type == Events.CheckoutSessionCompleted)
                 {
                     if (stripeEvent.Data?.Object?.Instance is Session stripeSession && !string.IsNullOrWhiteSpace(stripeSession.ClientReferenceId))
@@ -95,7 +96,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return await base.GetOrderReferenceAsync(ctx).ConfigureAwait(false);
         }
 
-        protected StripeTaxRate GetOrCreateStripeTaxRate(PaymentProviderContext<TSettings> ctx, string taxName, decimal percentage, bool inclusive)
+        protected async Task<StripeTaxRate> GetOrCreateStripeTaxRateAsync(PaymentProviderContext<TSettings> ctx, string taxName, decimal percentage, bool inclusive, CancellationToken cancellationToken = default)
         {
             var taxRateService = new TaxRateService();
             var stripeTaxRates = new List<StripeTaxRate>();
@@ -114,7 +115,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 }
             }
 
-            stripeTaxRates = taxRateService.List(new TaxRateListOptions { Active = true }).ToList();
+            stripeTaxRates = (await taxRateService.ListAsync(new TaxRateListOptions { Active = true }, cancellationToken: cancellationToken)).ToList();
 
             if (ctx.AdditionalData.ContainsKey("UmbracoCommerce_StripeTaxRates"))
             {
@@ -153,7 +154,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return taxRates.FirstOrDefault(x => x.Percentage == percentage && x.Inclusive == inclusive && x.DisplayName == taxName);
         }
 
-        protected async Task<StripeWebhookEvent> GetWebhookStripeEventAsync(PaymentProviderContext<TSettings> ctx, string webhookSigningSecret)
+        protected async Task<StripeWebhookEvent> GetWebhookStripeEventAsync(PaymentProviderContext<TSettings> ctx, string webhookSigningSecret, CancellationToken cancellationToken = default)
         {
             StripeWebhookEvent stripeEvent = null;
 
@@ -165,7 +166,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             {
                 try
                 {
-                    var stream = await ctx.Request.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                    var stream = await ctx.Request.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
 
                     if (stream.CanSeek)
                     {
@@ -174,7 +175,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                     using (var reader = new StreamReader(stream, Encoding.UTF8))
                     {
-                        var json = await reader.ReadToEndAsync().ConfigureAwait(false);
+                        var json = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
                         var stripeSignature = ctx.Request.Headers.GetValues("Stripe-Signature").FirstOrDefault();
 
                         // Just validate the webhook signature
@@ -193,27 +194,27 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                             {
                                 case "checkout.session":
                                     var sessionService = new SessionService();
-                                    stripeEvent.Data.Object.Instance = await sessionService.GetAsync(stripeEvent.Data.Object.Id).ConfigureAwait(false);
+                                    stripeEvent.Data.Object.Instance = await sessionService.GetAsync(stripeEvent.Data.Object.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
                                     break;
                                 case "charge":
                                     var chargeService = new ChargeService();
-                                    stripeEvent.Data.Object.Instance = await chargeService.GetAsync(stripeEvent.Data.Object.Id).ConfigureAwait(false);
+                                    stripeEvent.Data.Object.Instance = await chargeService.GetAsync(stripeEvent.Data.Object.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
                                     break;
                                 case "payment_intent":
                                     var paymentIntentService = new PaymentIntentService();
-                                    stripeEvent.Data.Object.Instance = await paymentIntentService.GetAsync(stripeEvent.Data.Object.Id).ConfigureAwait(false);
+                                    stripeEvent.Data.Object.Instance = await paymentIntentService.GetAsync(stripeEvent.Data.Object.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
                                     break;
                                 case "subscription":
                                     var subscriptionService = new SubscriptionService();
-                                    stripeEvent.Data.Object.Instance = await subscriptionService.GetAsync(stripeEvent.Data.Object.Id).ConfigureAwait(false);
+                                    stripeEvent.Data.Object.Instance = await subscriptionService.GetAsync(stripeEvent.Data.Object.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
                                     break;
                                 case "invoice":
                                     var invoiceService = new InvoiceService();
-                                    stripeEvent.Data.Object.Instance = await invoiceService.GetAsync(stripeEvent.Data.Object.Id).ConfigureAwait(false);
+                                    stripeEvent.Data.Object.Instance = await invoiceService.GetAsync(stripeEvent.Data.Object.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
                                     break;
                                 case "review":
                                     var reviewService = new ReviewService();
-                                    stripeEvent.Data.Object.Instance = await reviewService.GetAsync(stripeEvent.Data.Object.Id).ConfigureAwait(false);
+                                    stripeEvent.Data.Object.Instance = await reviewService.GetAsync(stripeEvent.Data.Object.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
                                     break;
                             }
                         }

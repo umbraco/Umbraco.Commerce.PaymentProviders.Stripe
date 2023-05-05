@@ -3,6 +3,7 @@ using Stripe.Checkout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Umbraco.Commerce.Common.Logging;
 using Umbraco.Commerce.Core;
@@ -37,7 +38,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             new TransactionMetaDataDefinition("stripeCardCountry", "Stripe Card Country")
         };
 
-        public override async Task<PaymentFormResult> GenerateFormAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        public override async Task<PaymentFormResult> GenerateFormAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
             var secretKey = ctx.Settings.TestMode ? ctx.Settings.TestSecretKey : ctx.Settings.LiveSecretKey;
             var publicKey = ctx.Settings.TestMode ? ctx.Settings.TestPublicKey : ctx.Settings.LivePublicKey;
@@ -170,7 +171,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     // Because we are in charge of what taxes apply, we need to setup a tax rate
                     // to ensure the price defined in stripe has the relevant taxes applied
                     var stripePricesIncludeTax = PropertyIsTrue(orderLine.Properties, "stripePriceIncludesTax");
-                    var stripeTaxRate = GetOrCreateStripeTaxRate(ctx, "Subscription Tax", orderLineTaxRate, stripePricesIncludeTax);
+                    var stripeTaxRate = await GetOrCreateStripeTaxRateAsync(ctx, "Subscription Tax", orderLineTaxRate, stripePricesIncludeTax, cancellationToken: cancellationToken);
                     if (stripeTaxRate != null)
                     {
                         lineItemOpts.TaxRates = new List<string>(new[] { stripeTaxRate.Id });
@@ -217,7 +218,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     // If we define the price, then create tax rates that are set to be inclusive
                     // as this means that we can pass prices inclusive of tax and Stripe works out
                     // the pre-tax price which would be less suseptable to rounding inconsistancies
-                    var stripeTaxRate = GetOrCreateStripeTaxRate(ctx, "Subscription Tax", orderLineTaxRate, false);
+                    var stripeTaxRate = await GetOrCreateStripeTaxRateAsync(ctx, "Subscription Tax", orderLineTaxRate, false, cancellationToken: cancellationToken);
                     if (stripeTaxRate != null)
                     {
                         lineItemOpts.TaxRates = new List<string>(new[] { stripeTaxRate.Id });
@@ -304,7 +305,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             }
 
             var sessionService = new SessionService();
-            var session = await sessionService.CreateAsync(sessionOptions).ConfigureAwait(false);
+            var session = await sessionService.CreateAsync(sessionOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             return new PaymentFormResult()
             {
@@ -333,7 +334,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             };
         }
 
-        public override async Task<CallbackResult> ProcessCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        public override async Task<CallbackResult> ProcessCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
             // The ProcessCallback method is only intendid to be called via a Stripe Webhook and so
             // it's job is to process the webhook event and finalize / update the ctx.Order accordingly
@@ -345,7 +346,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                 ConfigureStripe(secretKey);
 
-                var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret).ConfigureAwait(false);
+                var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret, cancellationToken).ConfigureAwait(false);
                 if (stripeEvent != null && stripeEvent.Type == Events.CheckoutSessionCompleted)
                 {
                     if (stripeEvent.Data?.Object?.Instance is Session stripeSession)
@@ -360,7 +361,8 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                     "latest_charge",
                                     "review"
                                 })
-                            }).ConfigureAwait(false);
+                            },
+                            cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             return CallbackResult.Ok(
                                 new TransactionInfo
@@ -393,7 +395,8 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                     "latest_invoice.payment_intent",
                                     "latest_invoice.payment_intent.review"
                                 })
-                            }).ConfigureAwait(false);
+                            },
+                            cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             var invoice = subscription.LatestInvoice;
 
@@ -450,7 +453,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return CallbackResult.BadRequest();
         }
 
-        public override async Task<ApiResult> FetchPaymentStatusAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        public override async Task<ApiResult> FetchPaymentStatusAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -470,7 +473,8 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                             "latest_charge",
                             "review"
                         })
-                    }).ConfigureAwait(false);
+                    },
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
 
                     return new ApiResult()
                     {
@@ -487,7 +491,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 if (!string.IsNullOrWhiteSpace(chargeId))
                 {
                     var chargeService = new ChargeService();
-                    var charge = await chargeService.GetAsync(chargeId).ConfigureAwait(false);
+                    var charge = await chargeService.GetAsync(chargeId, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                     return new ApiResult()
                     {
@@ -507,7 +511,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return ApiResult.Empty;
         }
 
-        public override async Task<ApiResult> CapturePaymentAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        public override async Task<ApiResult> CapturePaymentAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
             // NOTE: Subscriptions aren't currently abled to be "authorized" so the capture
             // routine shouldn't be relevant for subscription payments at this point
@@ -529,7 +533,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 {
                     AmountToCapture = AmountToMinorUnits(ctx.Order.TransactionInfo.AmountAuthorized.Value)
                 };
-                var paymentIntent = await paymentIntentService.CaptureAsync(paymentIntentId, paymentIntentOptions).ConfigureAwait(false);
+                var paymentIntent = await paymentIntentService.CaptureAsync(paymentIntentId, paymentIntentOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 return new ApiResult()
                 {
@@ -553,7 +557,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return ApiResult.Empty;
         }
 
-        public override async Task<ApiResult> RefundPaymentAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        public override async Task<ApiResult> RefundPaymentAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -574,14 +578,14 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 };
 
                 var refund = refundService.Create(refundCreateOptions);
-                var charge = refund.Charge ?? await new ChargeService().GetAsync(refund.ChargeId).ConfigureAwait(false);
+                var charge = refund.Charge ?? await new ChargeService().GetAsync(refund.ChargeId, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 // If we have a subscription then we'll cancel it as refunding an ctx.Order
                 // should effecitvely undo any purchase
                 if (!string.IsNullOrWhiteSpace(ctx.Order.Properties["stripeSubscriptionId"]))
                 {
                     var subscriptionService = new SubscriptionService();
-                    var subscription = await subscriptionService.GetAsync(ctx.Order.Properties["stripeSubscriptionId"]).ConfigureAwait(false);
+                    var subscription = await subscriptionService.GetAsync(ctx.Order.Properties["stripeSubscriptionId"], cancellationToken: cancellationToken).ConfigureAwait(false);
                     if (subscription != null)
                     {
                         subscriptionService.Cancel(ctx.Order.Properties["stripeSubscriptionId"], new SubscriptionCancelOptions
@@ -609,7 +613,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return ApiResult.Empty;
         }
 
-        public override async Task<ApiResult> CancelPaymentAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        public override async Task<ApiResult> CancelPaymentAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
             // NOTE: Subscriptions aren't currently abled to be "authorized" so the cancel
             // routine shouldn't be relevant for subscription payments at this point
@@ -625,7 +629,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     ConfigureStripe(secretKey);
 
                     var paymentIntentService = new PaymentIntentService();
-                    var intent = await paymentIntentService.CancelAsync(stripePaymentIntentId).ConfigureAwait(false);
+                    var intent = await paymentIntentService.CancelAsync(stripePaymentIntentId, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                     return new ApiResult()
                     {
@@ -641,7 +645,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 // so we attempt to refund it instead
                 var chargeId = ctx.Order.Properties["stripeChargeId"];
                 if (chargeId != null)
-                    return await RefundPaymentAsync(ctx).ConfigureAwait(false);
+                    return await RefundPaymentAsync(ctx, cancellationToken: cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

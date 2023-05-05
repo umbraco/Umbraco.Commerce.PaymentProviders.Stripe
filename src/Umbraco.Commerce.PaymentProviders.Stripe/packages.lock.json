@@ -30,7 +30,7 @@
       },
       "Stripe.net": {
         "type": "Direct",
-        "requested": "[41.0.0, )",
+        "requested": "[41.0.0, 42.0.0)",
         "resolved": "41.0.0",
         "contentHash": "latTCWJFk+3usXxZ5oOEwyVEujFtnBahq3MucfTEc8uXR+xqvRN4ArMnySWiQPBFW4fAs6dutk7w33uryU+Tkg==",
         "dependencies": {
@@ -58,9 +58,9 @@
       },
       "Umbraco.Commerce.Core": {
         "type": "Direct",
-        "requested": "[12.0.0--rc.preview.20, 13.0.0)",
-        "resolved": "12.0.0--rc.preview.20.g9e995e2",
-        "contentHash": "Mr9Ui7alwl9V6kXvpA+M0rNISNQnrah8oGcQtKhbKaTFZ5Bd3kvQV/XZDCZtBgNFT+ojCeiKBiBAaxj8vGyyDA==",
+        "requested": "[12.0.0--rc.preview.21, 13.0.0)",
+        "resolved": "12.0.0--rc.preview.21.gebcba43",
+        "contentHash": "b+1P1DSu0DDIp6EaiYwPX/f46eebEc7oTZyxy1iLlVowSd3RT67fvb48bRP9B863oFISS93L66YOuctgvW6D3w==",
         "dependencies": {
           "Microsoft.Extensions.Configuration.Abstractions": "[7.0.0, 8.0.0)",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[7.0.0, 8.0.0)",
@@ -69,7 +69,7 @@
           "RT.Comb": "[2.5.0, 3.0.0)",
           "System.Linq.Dynamic.Core": "[1.2.10, 2.0.0)",
           "System.Runtime.Caching": "[7.0.0, 8.0.0)",
-          "Umbraco.Commerce.Common": "12.0.0--rc.preview.20.g9e995e2"
+          "Umbraco.Commerce.Common": "12.0.0--rc.preview.21.gebcba43"
         }
       },
       "Umbraco.GitVersioning.Extensions": {
@@ -1302,8 +1302,8 @@
       },
       "Umbraco.Commerce.Common": {
         "type": "Transitive",
-        "resolved": "12.0.0--rc.preview.20.g9e995e2",
-        "contentHash": "Z9Rx7h0NdDrPK3R/XKDy3992QyjOUHCzGWikEh4udxZMnvsXPrQVEs4pqVCeSjQMnuyAAOthIvH4m23w+QMEjA==",
+        "resolved": "12.0.0--rc.preview.21.gebcba43",
+        "contentHash": "3QgMskSmaqJPhmUiu/MLtPKvXhro3UvRF7WuJ1L+68wA9aWDZ/6la54v0n2r7M9DTtGM5jjRagiRU3NXSA0yAw==",
         "dependencies": {
           "CompareNETObjects": "[4.75.0, 5.0.0)",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[7.0.0, 8.0.0)",
