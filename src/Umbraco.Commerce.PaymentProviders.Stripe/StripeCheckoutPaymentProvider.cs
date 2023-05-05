@@ -171,7 +171,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     // Because we are in charge of what taxes apply, we need to setup a tax rate
                     // to ensure the price defined in stripe has the relevant taxes applied
                     var stripePricesIncludeTax = PropertyIsTrue(orderLine.Properties, "stripePriceIncludesTax");
-                    var stripeTaxRate = await GetOrCreateStripeTaxRateAsync(ctx, "Subscription Tax", orderLineTaxRate, stripePricesIncludeTax, cancellationToken: cancellationToken);
+                    var stripeTaxRate = await GetOrCreateStripeTaxRateAsync(ctx, "Subscription Tax", orderLineTaxRate, stripePricesIncludeTax, cancellationToken: cancellationToken).ConfigureAwait(false);
                     if (stripeTaxRate != null)
                     {
                         lineItemOpts.TaxRates = new List<string>(new[] { stripeTaxRate.Id });
@@ -218,7 +218,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     // If we define the price, then create tax rates that are set to be inclusive
                     // as this means that we can pass prices inclusive of tax and Stripe works out
                     // the pre-tax price which would be less suseptable to rounding inconsistancies
-                    var stripeTaxRate = await GetOrCreateStripeTaxRateAsync(ctx, "Subscription Tax", orderLineTaxRate, false, cancellationToken: cancellationToken);
+                    var stripeTaxRate = await GetOrCreateStripeTaxRateAsync(ctx, "Subscription Tax", orderLineTaxRate, false, cancellationToken: cancellationToken).ConfigureAwait(false);
                     if (stripeTaxRate != null)
                     {
                         lineItemOpts.TaxRates = new List<string>(new[] { stripeTaxRate.Id });
@@ -255,7 +255,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                 lineItems.Add(lineItemOpts);
             }
-            
+
             // Add image to the first item (only if it's not a product link)
             if (!string.IsNullOrWhiteSpace(ctx.Settings.OrderImage) && lineItems.Count > 0 && lineItems[0].PriceData?.ProductData != null)
             {
