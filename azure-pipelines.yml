@@ -12,7 +12,7 @@ parameters:
 
 variables:
   nodeVersion: 18.x
-  solution: Umbraco.Commerce.PaymentProvider.Stripe.sln
+  solution: Umbraco.Commerce.PaymentProviders.Stripe.sln
   buildConfiguration: Release
   DOTNET_NOLOGO: true
   DOTNET_GENERATE_ASPNET_CERTIFICATE: false
