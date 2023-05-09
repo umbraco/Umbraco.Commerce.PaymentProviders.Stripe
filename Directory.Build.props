@@ -5,7 +5,7 @@
     <Authors>Umbraco</Authors>
     <Copyright>Copyright © Umbraco $([System.DateTime]::Today.ToString('yyyy'))</Copyright>
     <Product>Umbraco Commerce Stripe Payment Provider</Product>
-    <PackageProjectUrl>https://github.com/umbraco/Umbraco.Commerce.PaymentProvider.Stripe</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/umbraco/Umbraco.Commerce.PaymentProviders.Stripe</PackageProjectUrl>
     <PackageIcon>logo-128.png</PackageIcon>
     <PackageTags>umbraco commerce stripe</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
