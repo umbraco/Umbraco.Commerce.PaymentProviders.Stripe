@@ -58,9 +58,9 @@
       },
       "Umbraco.Commerce.Core": {
         "type": "Direct",
-        "requested": "[12.0.0--rc.preview.21, 13.0.0)",
-        "resolved": "12.0.0--rc.preview.21.gebcba43",
-        "contentHash": "b+1P1DSu0DDIp6EaiYwPX/f46eebEc7oTZyxy1iLlVowSd3RT67fvb48bRP9B863oFISS93L66YOuctgvW6D3w==",
+        "requested": "[12.0.0--rc.preview.31, 13.0.0)",
+        "resolved": "12.0.0--rc.preview.31.g8bb33a6",
+        "contentHash": "yt0vQWWEplqigxmYdCCjo5B3Ej14HL2wnSR60+IwaB6uPj1iwcenglQOC1oI7MYCc/3XR+CmLKoJV+df/71D1Q==",
         "dependencies": {
           "Microsoft.Extensions.Configuration.Abstractions": "[7.0.0, 8.0.0)",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[7.0.0, 8.0.0)",
@@ -69,7 +69,7 @@
           "RT.Comb": "[2.5.0, 3.0.0)",
           "System.Linq.Dynamic.Core": "[1.2.10, 2.0.0)",
           "System.Runtime.Caching": "[7.0.0, 8.0.0)",
-          "Umbraco.Commerce.Common": "12.0.0--rc.preview.21.gebcba43"
+          "Umbraco.Commerce.Common": "12.0.0--rc.preview.31.g8bb33a6"
         }
       },
       "Umbraco.GitVersioning.Extensions": {
@@ -1302,8 +1302,8 @@
       },
       "Umbraco.Commerce.Common": {
         "type": "Transitive",
-        "resolved": "12.0.0--rc.preview.21.gebcba43",
-        "contentHash": "3QgMskSmaqJPhmUiu/MLtPKvXhro3UvRF7WuJ1L+68wA9aWDZ/6la54v0n2r7M9DTtGM5jjRagiRU3NXSA0yAw==",
+        "resolved": "12.0.0--rc.preview.31.g8bb33a6",
+        "contentHash": "2gNSbwrZ6WUesZgSGi1LB1BLsegsOTWWtCHSmoUQ5y5oybLme2hV7J+vOgPxrxjJzUuq3b8Pa9P4TWQydNyrOw==",
         "dependencies": {
           "CompareNETObjects": "[4.75.0, 5.0.0)",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[7.0.0, 8.0.0)",
