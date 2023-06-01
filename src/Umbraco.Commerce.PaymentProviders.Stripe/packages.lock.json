@@ -58,7 +58,7 @@
       },
       "Umbraco.Commerce.Core": {
         "type": "Direct",
-        "requested": "[12.0.0--rc1, 13.0.0)",
+        "requested": "[12.0.0-rc1, 13.0.0)",
         "resolved": "12.0.0-rc1",
         "contentHash": "Hnuo0lL+TdIf2Dmnz2VTneuAb3QLjzdXDT5DuNWdcjOMDX6knOeldvnWAif+q7REkHLC0zrf2MO8R2uPBB4ZVQ==",
         "dependencies": {
