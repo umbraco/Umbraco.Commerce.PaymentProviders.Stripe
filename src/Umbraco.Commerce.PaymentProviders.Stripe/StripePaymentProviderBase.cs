@@ -175,7 +175,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                     using (var reader = new StreamReader(stream, Encoding.UTF8))
                     {
-                        var json = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+                        var json = await reader.ReadToEndAsync().ConfigureAwait(false);
                         var stripeSignature = ctx.Request.Headers.GetValues("Stripe-Signature").FirstOrDefault();
 
                         // Just validate the webhook signature
