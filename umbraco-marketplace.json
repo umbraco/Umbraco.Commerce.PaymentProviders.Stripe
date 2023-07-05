@@ -13,7 +13,6 @@
   "DocumentationUrl": "https://docs.umbraco.com/umbraco-commerce-payment-providers/stripe",
   "IssueTrackerUrl": "https://github.com/umbraco/Umbraco.Commerce.PaymentProviders.Stripe/issues",
   "PackageType": "Package",
-  "IsSubPackageOf": "Umbraco.Commerce",
   "PackagesByAuthor": [
     "Umbraco.Forms",
     "Umbraco.Workflow",
