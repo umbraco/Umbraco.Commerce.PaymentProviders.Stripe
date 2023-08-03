@@ -3,6 +3,8 @@ using Stripe.Checkout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Formatting;
 using System.Threading;
 using System.Threading.Tasks;
 using Umbraco.Commerce.Common.Logging;
@@ -274,7 +276,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                         "card",
                     },
                 LineItems = lineItems,
-                Mode = hasRecurringItems 
+                Mode = hasRecurringItems
                     ? "subscription"
                     : "payment",
                 ClientReferenceId = ctx.Order.GenerateOrderReference(),
@@ -335,6 +337,49 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
         }
 
         public override async Task<CallbackResult> ProcessCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
+        {
+            if (ctx.Request.RequestUri.Query.Contains("create=paymentIntent"))
+            {
+                return await ProcessCreatePaymentIntentCallbackAsync(ctx);
+            }
+            else
+            {
+                return await ProcessWebhookCallbackAsync(ctx);
+            }
+        }
+
+        private async Task<CallbackResult> ProcessCreatePaymentIntentCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
+        {
+            var secretKey = ctx.Settings.TestMode ? ctx.Settings.TestSecretKey : ctx.Settings.LiveSecretKey;
+
+            ConfigureStripe(secretKey);
+
+            var currency = Context.Services.CurrencyService.GetCurrency(ctx.Order.CurrencyId);
+
+            var paymentIntentService = new PaymentIntentService();
+            var paymentIntent = paymentIntentService.Create(new PaymentIntentCreateOptions
+            {
+                Amount = AmountToMinorUnits(ctx.Order.TransactionAmount.Value),
+                Currency = currency.Code,
+                AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
+                {
+                    Enabled = true,
+                }
+            });
+
+            return new CallbackResult
+            {
+                HttpResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new ObjectContent<object>(
+                        new { clientSecret = paymentIntent.ClientSecret },
+                        new JsonMediaTypeFormatter(),
+                        JsonMediaTypeFormatter.DefaultMediaType.MediaType)
+                }
+            };
+        }
+
+        private async Task<CallbackResult> ProcessWebhookCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
             // The ProcessCallback method is only intendid to be called via a Stripe Webhook and so
             // it's job is to process the webhook event and finalize / update the ctx.Order accordingly
