@@ -15,6 +15,7 @@ using Umbraco.Commerce.Core.Models;
 using Umbraco.Commerce.Core.PaymentProviders;
 using Umbraco.Commerce.Extensions;
 using CustomerService = Stripe.CustomerService;
+using RefundService = Stripe.RefundService;
 
 namespace Umbraco.Commerce.PaymentProviders.Stripe
 {
