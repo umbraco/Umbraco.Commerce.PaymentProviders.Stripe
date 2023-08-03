@@ -315,7 +315,28 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 ConfigureStripe(secretKey);
 
                 var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret, cancellationToken).ConfigureAwait(false);
-                if (stripeEvent != null && stripeEvent.Type == Events.CheckoutSessionCompleted)
+                if (stripeEvent != null && stripeEvent.Type == Events.PaymentIntentSucceeded)
+                {
+                    if (stripeEvent.Data?.Object?.Instance is PaymentIntent paymentIntent)
+                    {
+                        return CallbackResult.Ok(
+                            new TransactionInfo
+                            {
+                                TransactionId = GetTransactionId(paymentIntent),
+                                AmountAuthorized = AmountFromMinorUnits(paymentIntent.Amount),
+                                PaymentStatus = GetPaymentStatus(paymentIntent)
+                            },
+                            new Dictionary<string, string>
+                            {
+                                { "stripeCustomerId", paymentIntent.CustomerId },
+                                { "stripePaymentIntentId", paymentIntent.Id },
+                                { "stripeChargeId", GetTransactionId(paymentIntent) },
+                                { "stripeCardCountry", paymentIntent.LatestCharge?.PaymentMethodDetails?.Card?.Country }
+                            }
+                        );
+                    }
+                }
+                else if (stripeEvent != null && stripeEvent.Type == Events.CheckoutSessionCompleted)
                 {
                     if (stripeEvent.Data?.Object?.Instance is Session stripeSession)
                     {
