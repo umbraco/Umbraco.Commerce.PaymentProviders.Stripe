@@ -1,5 +1,6 @@
 using Stripe;
 using Stripe.Checkout;
+using Stripe.TestHelpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,6 +14,7 @@ using Umbraco.Commerce.Core.Api;
 using Umbraco.Commerce.Core.Models;
 using Umbraco.Commerce.Core.PaymentProviders;
 using Umbraco.Commerce.Extensions;
+using CustomerService = Stripe.CustomerService;
 
 namespace Umbraco.Commerce.PaymentProviders.Stripe
 {
@@ -48,104 +50,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             ConfigureStripe(secretKey);
 
             var currency = Context.Services.CurrencyService.GetCurrency(ctx.Order.CurrencyId);
-            var billingCountry = ctx.Order.PaymentInfo.CountryId.HasValue
-                ? Context.Services.CountryService.GetCountry(ctx.Order.PaymentInfo.CountryId.Value)
-                : null;
 
-            Customer customer;
-
-            var customerService = new CustomerService();
-
-            // If we've created a customer already, keep using it but update it incase
-            // any of the billing details have changed
-            if (!string.IsNullOrWhiteSpace(ctx.Order.Properties["stripeCustomerId"]))
-            {
-                var customerOptions = new CustomerUpdateOptions
-                {
-                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
-                    Email = ctx.Order.CustomerInfo.Email,
-                    Description = ctx.Order.OrderNumber,
-                    Address = new AddressOptions
-                    {
-                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
-                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
-                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
-                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
-                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
-                        Country = billingCountry?.Code
-                    }
-                };
-
-                // Pass billing country / zipcode as meta data as currently
-                // this is the only way it can be validated via Radar
-                // Block if ::customer:billingCountry:: != :card_country:
-                customerOptions.Metadata = new Dictionary<string, string>
-                {
-                    { "billingCountry", customerOptions.Address.Country },
-                    { "billingZipCode", customerOptions.Address.PostalCode }
-                };
-
-                customer = customerService.Update(ctx.Order.Properties["stripeCustomerId"].Value, customerOptions);
-            }
-            else
-            {
-                var customerOptions = new CustomerCreateOptions
-                {
-                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
-                    Email = ctx.Order.CustomerInfo.Email,
-                    Description = ctx.Order.OrderNumber,
-                    Address = new AddressOptions
-                    {
-                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
-                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
-                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
-                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
-                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
-                        Country = billingCountry?.Code
-                    }
-                };
-
-                // Pass billing country / zipcode as meta data as currently
-                // this is the only way it can be validated via Radar
-                // Block if ::customer:billingCountry:: != :card_country:
-                customerOptions.Metadata = new Dictionary<string, string>
-                {
-                    { "billingCountry", customerOptions.Address.Country },
-                    { "billingZipCode", customerOptions.Address.PostalCode }
-                };
-
-                customer = customerService.Create(customerOptions);
-            }
-
-            var metaData = new Dictionary<string, string>
-            {
-                { "orderReference", ctx.Order.GenerateOrderReference() },
-                { "orderId", ctx.Order.Id.ToString("D") },
-                { "orderNumber", ctx.Order.OrderNumber }
-            };
-
-            if (!string.IsNullOrWhiteSpace(ctx.Settings.OrderProperties))
-            {
-                foreach (var alias in ctx.Settings.OrderProperties.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => x.Trim())
-                    .Where(x => !string.IsNullOrWhiteSpace(x)))
-                {
-                    if (!string.IsNullOrWhiteSpace(ctx.Order.Properties[alias]))
-                    {
-                        metaData.Add(alias, ctx.Order.Properties[alias]);
-                    }
-                }
-            }
+            var customer = GetOrCreateStripeCustomer(ctx);
+            var metaData = CreateOrderStripeMetaData(ctx);
 
             var hasRecurringItems = false;
             long recurringTotalPrice = 0;
@@ -356,16 +263,31 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
             var currency = Context.Services.CurrencyService.GetCurrency(ctx.Order.CurrencyId);
 
+            var customer = GetOrCreateStripeCustomer(ctx);
+            var metaData = CreateOrderStripeMetaData(ctx);
+
             var paymentIntentService = new PaymentIntentService();
-            var paymentIntent = paymentIntentService.Create(new PaymentIntentCreateOptions
+            var paymentIntentOptions = new PaymentIntentCreateOptions
             {
+                Customer = customer?.Id,
                 Amount = AmountToMinorUnits(ctx.Order.TransactionAmount.Value),
                 Currency = currency.Code,
-                AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
-                {
-                    Enabled = true,
-                }
-            });
+                //AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
+                //{
+                //    Enabled = true,
+                //},
+                PaymentMethodTypes = !string.IsNullOrWhiteSpace(ctx.Settings.PaymentMethodTypes)
+                    ? ctx.Settings.PaymentMethodTypes.Split(',')
+                        .Select(tag => tag.Trim())
+                        .Where(tag => !string.IsNullOrEmpty(tag))
+                        .ToList()
+                    : new List<string> {
+                        "card",
+                    },
+                Metadata = metaData
+            };
+
+            var paymentIntent = paymentIntentService.Create(paymentIntentOptions);
 
             return new CallbackResult
             {
@@ -710,6 +632,113 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return props.ContainsKey(propAlias)
                 && !string.IsNullOrWhiteSpace(props[propAlias])
                 && (props[propAlias] == "1" || props[propAlias].Value.Equals("true", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private Customer GetOrCreateStripeCustomer(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        {
+            Customer customer;
+
+            var customerService = new CustomerService();
+
+            var billingCountry = ctx.Order.PaymentInfo.CountryId.HasValue
+                ? Context.Services.CountryService.GetCountry(ctx.Order.PaymentInfo.CountryId.Value)
+                : null;
+
+            if (!string.IsNullOrWhiteSpace(ctx.Order.Properties["stripeCustomerId"]))
+            {
+                var customerOptions = new CustomerUpdateOptions
+                {
+                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
+                    Email = ctx.Order.CustomerInfo.Email,
+                    Description = ctx.Order.OrderNumber,
+                    Address = new AddressOptions
+                    {
+                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
+                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
+                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
+                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
+                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
+                        Country = billingCountry?.Code
+                    }
+                };
+
+                // Pass billing country / zipcode as meta data as currently
+                // this is the only way it can be validated via Radar
+                // Block if ::customer:billingCountry:: != :card_country:
+                customerOptions.Metadata = new Dictionary<string, string>
+                {
+                    { "billingCountry", customerOptions.Address.Country },
+                    { "billingZipCode", customerOptions.Address.PostalCode }
+                };
+
+                customer = customerService.Update(ctx.Order.Properties["stripeCustomerId"].Value, customerOptions);
+            }
+            else
+            {
+                var customerOptions = new CustomerCreateOptions
+                {
+                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
+                    Email = ctx.Order.CustomerInfo.Email,
+                    Description = ctx.Order.OrderNumber,
+                    Address = new AddressOptions
+                    {
+                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
+                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
+                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
+                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
+                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
+                        Country = billingCountry?.Code
+                    }
+                };
+
+                // Pass billing country / zipcode as meta data as currently
+                // this is the only way it can be validated via Radar
+                // Block if ::customer:billingCountry:: != :card_country:
+                customerOptions.Metadata = new Dictionary<string, string>
+                {
+                    { "billingCountry", customerOptions.Address.Country },
+                    { "billingZipCode", customerOptions.Address.PostalCode }
+                };
+
+                customer = customerService.Create(customerOptions);
+            }
+
+            return customer;
+        }
+
+        private Dictionary<string, string> CreateOrderStripeMetaData(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        {
+            var metaData = new Dictionary<string, string>
+            {
+                { "orderReference", ctx.Order.GenerateOrderReference() },
+                { "orderId", ctx.Order.Id.ToString("D") },
+                { "orderNumber", ctx.Order.OrderNumber }
+            };
+
+            if (!string.IsNullOrWhiteSpace(ctx.Settings.OrderProperties))
+            {
+                foreach (var alias in ctx.Settings.OrderProperties.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x)))
+                {
+                    if (!string.IsNullOrWhiteSpace(ctx.Order.Properties[alias]))
+                    {
+                        metaData.Add(alias, ctx.Order.Properties[alias]);
+                    }
+                }
+            }
+
+            return metaData;
         }
     }
 }
