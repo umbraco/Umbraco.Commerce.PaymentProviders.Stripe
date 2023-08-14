@@ -1,8 +1,11 @@
 using Stripe;
 using Stripe.Checkout;
+using Stripe.TestHelpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Formatting;
 using System.Threading;
 using System.Threading.Tasks;
 using Umbraco.Commerce.Common.Logging;
@@ -11,6 +14,8 @@ using Umbraco.Commerce.Core.Api;
 using Umbraco.Commerce.Core.Models;
 using Umbraco.Commerce.Core.PaymentProviders;
 using Umbraco.Commerce.Extensions;
+using CustomerService = Stripe.CustomerService;
+using RefundService = Stripe.RefundService;
 
 namespace Umbraco.Commerce.PaymentProviders.Stripe
 {
@@ -46,104 +51,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             ConfigureStripe(secretKey);
 
             var currency = Context.Services.CurrencyService.GetCurrency(ctx.Order.CurrencyId);
-            var billingCountry = ctx.Order.PaymentInfo.CountryId.HasValue
-                ? Context.Services.CountryService.GetCountry(ctx.Order.PaymentInfo.CountryId.Value)
-                : null;
 
-            Customer customer;
-
-            var customerService = new CustomerService();
-
-            // If we've created a customer already, keep using it but update it incase
-            // any of the billing details have changed
-            if (!string.IsNullOrWhiteSpace(ctx.Order.Properties["stripeCustomerId"]))
-            {
-                var customerOptions = new CustomerUpdateOptions
-                {
-                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
-                    Email = ctx.Order.CustomerInfo.Email,
-                    Description = ctx.Order.OrderNumber,
-                    Address = new AddressOptions
-                    {
-                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
-                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
-                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
-                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
-                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
-                        Country = billingCountry?.Code
-                    }
-                };
-
-                // Pass billing country / zipcode as meta data as currently
-                // this is the only way it can be validated via Radar
-                // Block if ::customer:billingCountry:: != :card_country:
-                customerOptions.Metadata = new Dictionary<string, string>
-                {
-                    { "billingCountry", customerOptions.Address.Country },
-                    { "billingZipCode", customerOptions.Address.PostalCode }
-                };
-
-                customer = customerService.Update(ctx.Order.Properties["stripeCustomerId"].Value, customerOptions);
-            }
-            else
-            {
-                var customerOptions = new CustomerCreateOptions
-                {
-                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
-                    Email = ctx.Order.CustomerInfo.Email,
-                    Description = ctx.Order.OrderNumber,
-                    Address = new AddressOptions
-                    {
-                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
-                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
-                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
-                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
-                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
-                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
-                        Country = billingCountry?.Code
-                    }
-                };
-
-                // Pass billing country / zipcode as meta data as currently
-                // this is the only way it can be validated via Radar
-                // Block if ::customer:billingCountry:: != :card_country:
-                customerOptions.Metadata = new Dictionary<string, string>
-                {
-                    { "billingCountry", customerOptions.Address.Country },
-                    { "billingZipCode", customerOptions.Address.PostalCode }
-                };
-
-                customer = customerService.Create(customerOptions);
-            }
-
-            var metaData = new Dictionary<string, string>
-            {
-                { "orderReference", ctx.Order.GenerateOrderReference() },
-                { "orderId", ctx.Order.Id.ToString("D") },
-                { "orderNumber", ctx.Order.OrderNumber }
-            };
-
-            if (!string.IsNullOrWhiteSpace(ctx.Settings.OrderProperties))
-            {
-                foreach (var alias in ctx.Settings.OrderProperties.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => x.Trim())
-                    .Where(x => !string.IsNullOrWhiteSpace(x)))
-                {
-                    if (!string.IsNullOrWhiteSpace(ctx.Order.Properties[alias]))
-                    {
-                        metaData.Add(alias, ctx.Order.Properties[alias]);
-                    }
-                }
-            }
+            var customer = GetOrCreateStripeCustomer(ctx);
+            var metaData = CreateOrderStripeMetaData(ctx);
 
             var hasRecurringItems = false;
             long recurringTotalPrice = 0;
@@ -274,7 +184,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                         "card",
                     },
                 LineItems = lineItems,
-                Mode = hasRecurringItems 
+                Mode = hasRecurringItems
                     ? "subscription"
                     : "payment",
                 ClientReferenceId = ctx.Order.GenerateOrderReference(),
@@ -336,6 +246,64 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
         public override async Task<CallbackResult> ProcessCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
         {
+            if (ctx.Request.RequestUri.Query.Contains("create=paymentIntent"))
+            {
+                return await ProcessCreatePaymentIntentCallbackAsync(ctx);
+            }
+            else
+            {
+                return await ProcessWebhookCallbackAsync(ctx);
+            }
+        }
+
+        private async Task<CallbackResult> ProcessCreatePaymentIntentCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
+        {
+            var secretKey = ctx.Settings.TestMode ? ctx.Settings.TestSecretKey : ctx.Settings.LiveSecretKey;
+
+            ConfigureStripe(secretKey);
+
+            var currency = Context.Services.CurrencyService.GetCurrency(ctx.Order.CurrencyId);
+
+            var customer = GetOrCreateStripeCustomer(ctx);
+            var metaData = CreateOrderStripeMetaData(ctx);
+
+            var paymentIntentService = new PaymentIntentService();
+            var paymentIntentOptions = new PaymentIntentCreateOptions
+            {
+                Customer = customer?.Id,
+                Amount = AmountToMinorUnits(ctx.Order.TransactionAmount.Value),
+                Currency = currency.Code,
+                //AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
+                //{
+                //    Enabled = true,
+                //},
+                PaymentMethodTypes = !string.IsNullOrWhiteSpace(ctx.Settings.PaymentMethodTypes)
+                    ? ctx.Settings.PaymentMethodTypes.Split(',')
+                        .Select(tag => tag.Trim())
+                        .Where(tag => !string.IsNullOrEmpty(tag))
+                        .ToList()
+                    : new List<string> {
+                        "card",
+                    },
+                Metadata = metaData
+            };
+
+            var paymentIntent = paymentIntentService.Create(paymentIntentOptions);
+
+            return new CallbackResult
+            {
+                HttpResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new ObjectContent<object>(
+                        new { clientSecret = paymentIntent.ClientSecret },
+                        new JsonMediaTypeFormatter(),
+                        JsonMediaTypeFormatter.DefaultMediaType.MediaType)
+                }
+            };
+        }
+
+        private async Task<CallbackResult> ProcessWebhookCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
+        {
             // The ProcessCallback method is only intendid to be called via a Stripe Webhook and so
             // it's job is to process the webhook event and finalize / update the ctx.Order accordingly
 
@@ -347,7 +315,28 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 ConfigureStripe(secretKey);
 
                 var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret, cancellationToken).ConfigureAwait(false);
-                if (stripeEvent != null && stripeEvent.Type == Events.CheckoutSessionCompleted)
+                if (stripeEvent != null && stripeEvent.Type == Events.PaymentIntentSucceeded)
+                {
+                    if (stripeEvent.Data?.Object?.Instance is PaymentIntent paymentIntent)
+                    {
+                        return CallbackResult.Ok(
+                            new TransactionInfo
+                            {
+                                TransactionId = GetTransactionId(paymentIntent),
+                                AmountAuthorized = AmountFromMinorUnits(paymentIntent.Amount),
+                                PaymentStatus = GetPaymentStatus(paymentIntent)
+                            },
+                            new Dictionary<string, string>
+                            {
+                                { "stripeCustomerId", paymentIntent.CustomerId },
+                                { "stripePaymentIntentId", paymentIntent.Id },
+                                { "stripeChargeId", GetTransactionId(paymentIntent) },
+                                { "stripeCardCountry", paymentIntent.LatestCharge?.PaymentMethodDetails?.Card?.Country }
+                            }
+                        );
+                    }
+                }
+                else if (stripeEvent != null && stripeEvent.Type == Events.CheckoutSessionCompleted)
                 {
                     if (stripeEvent.Data?.Object?.Instance is Session stripeSession)
                     {
@@ -665,6 +654,113 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return props.ContainsKey(propAlias)
                 && !string.IsNullOrWhiteSpace(props[propAlias])
                 && (props[propAlias] == "1" || props[propAlias].Value.Equals("true", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private Customer GetOrCreateStripeCustomer(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        {
+            Customer customer;
+
+            var customerService = new CustomerService();
+
+            var billingCountry = ctx.Order.PaymentInfo.CountryId.HasValue
+                ? Context.Services.CountryService.GetCountry(ctx.Order.PaymentInfo.CountryId.Value)
+                : null;
+
+            if (!string.IsNullOrWhiteSpace(ctx.Order.Properties["stripeCustomerId"]))
+            {
+                var customerOptions = new CustomerUpdateOptions
+                {
+                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
+                    Email = ctx.Order.CustomerInfo.Email,
+                    Description = ctx.Order.OrderNumber,
+                    Address = new AddressOptions
+                    {
+                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
+                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
+                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
+                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
+                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
+                        Country = billingCountry?.Code
+                    }
+                };
+
+                // Pass billing country / zipcode as meta data as currently
+                // this is the only way it can be validated via Radar
+                // Block if ::customer:billingCountry:: != :card_country:
+                customerOptions.Metadata = new Dictionary<string, string>
+                {
+                    { "billingCountry", customerOptions.Address.Country },
+                    { "billingZipCode", customerOptions.Address.PostalCode }
+                };
+
+                customer = customerService.Update(ctx.Order.Properties["stripeCustomerId"].Value, customerOptions);
+            }
+            else
+            {
+                var customerOptions = new CustomerCreateOptions
+                {
+                    Name = $"{ctx.Order.CustomerInfo.FirstName} {ctx.Order.CustomerInfo.LastName}",
+                    Email = ctx.Order.CustomerInfo.Email,
+                    Description = ctx.Order.OrderNumber,
+                    Address = new AddressOptions
+                    {
+                        Line1 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine1PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine1PropertyAlias] : "",
+                        Line2 = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressLine2PropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressLine2PropertyAlias] : "",
+                        City = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressCityPropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressCityPropertyAlias] : "",
+                        State = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressStatePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressStatePropertyAlias] : "",
+                        PostalCode = !string.IsNullOrWhiteSpace(ctx.Settings.BillingAddressZipCodePropertyAlias)
+                            ? ctx.Order.Properties[ctx.Settings.BillingAddressZipCodePropertyAlias] : "",
+                        Country = billingCountry?.Code
+                    }
+                };
+
+                // Pass billing country / zipcode as meta data as currently
+                // this is the only way it can be validated via Radar
+                // Block if ::customer:billingCountry:: != :card_country:
+                customerOptions.Metadata = new Dictionary<string, string>
+                {
+                    { "billingCountry", customerOptions.Address.Country },
+                    { "billingZipCode", customerOptions.Address.PostalCode }
+                };
+
+                customer = customerService.Create(customerOptions);
+            }
+
+            return customer;
+        }
+
+        private Dictionary<string, string> CreateOrderStripeMetaData(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        {
+            var metaData = new Dictionary<string, string>
+            {
+                { "orderReference", ctx.Order.GenerateOrderReference() },
+                { "orderId", ctx.Order.Id.ToString("D") },
+                { "orderNumber", ctx.Order.OrderNumber }
+            };
+
+            if (!string.IsNullOrWhiteSpace(ctx.Settings.OrderProperties))
+            {
+                foreach (var alias in ctx.Settings.OrderProperties.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x)))
+                {
+                    if (!string.IsNullOrWhiteSpace(ctx.Order.Properties[alias]))
+                    {
+                        metaData.Add(alias, ctx.Order.Properties[alias]);
+                    }
+                }
+            }
+
+            return metaData;
         }
     }
 }
