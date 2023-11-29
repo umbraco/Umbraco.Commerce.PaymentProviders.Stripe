@@ -3,7 +3,6 @@
   <PropertyGroup>
     <Title>Umbraco Commerce Stripe Payment Provider</Title>
     <Description>Stripe payment provider for Umbraco Commerce</Description>
-    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
