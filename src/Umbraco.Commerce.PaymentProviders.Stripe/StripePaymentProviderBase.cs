@@ -86,7 +86,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     if (stripeEvent.Data?.Object?.Instance is Review stripeReview && !string.IsNullOrWhiteSpace(stripeReview.PaymentIntentId))
                     {
                         var paymentIntentService = new PaymentIntentService();
-                        var paymentIntent = paymentIntentService.Get(stripeReview.PaymentIntentId);
+                        var paymentIntent = await paymentIntentService.GetAsync(stripeReview.PaymentIntentId, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                         if (paymentIntent != null && paymentIntent.Metadata.TryGetValue("orderReference", out string value))
                         {
@@ -122,7 +122,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 }
             }
 
-            stripeTaxRates = (await taxRateService.ListAsync(new TaxRateListOptions { Active = true }, cancellationToken: cancellationToken)).ToList();
+            stripeTaxRates = (await taxRateService.ListAsync(new TaxRateListOptions { Active = true }, cancellationToken: cancellationToken).ConfigureAwait(false)).ToList();
 
             if (ctx.AdditionalData.ContainsKey("UmbracoCommerce_StripeTaxRates"))
             {
@@ -142,12 +142,14 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 }
             }
 
-            var newTaxRate = taxRateService.Create(new TaxRateCreateOptions
-            {
-                DisplayName = taxName,
-                Percentage = percentage,
-                Inclusive = inclusive,
-            });
+            var newTaxRate = await taxRateService.CreateAsync(
+                new TaxRateCreateOptions
+                {
+                    DisplayName = taxName,
+                    Percentage = percentage,
+                    Inclusive = inclusive,
+                },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
 
             stripeTaxRates.Add(newTaxRate);
 

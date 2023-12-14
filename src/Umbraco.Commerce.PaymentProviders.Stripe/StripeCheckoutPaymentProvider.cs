@@ -1,6 +1,5 @@
 using Stripe;
 using Stripe.Checkout;
-using Stripe.TestHelpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +13,7 @@ using Umbraco.Commerce.Core.Api;
 using Umbraco.Commerce.Core.Models;
 using Umbraco.Commerce.Core.PaymentProviders;
 using Umbraco.Commerce.Extensions;
+
 using CustomerService = Stripe.CustomerService;
 using RefundService = Stripe.RefundService;
 
@@ -288,7 +288,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 Metadata = metaData
             };
 
-            var paymentIntent = paymentIntentService.Create(paymentIntentOptions);
+            var paymentIntent = await paymentIntentService.CreateAsync(paymentIntentOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             return new CallbackResult
             {
@@ -343,15 +343,17 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                         if (stripeSession.Mode == "payment")
                         {
                             var paymentIntentService = new PaymentIntentService();
-                            var paymentIntent = await paymentIntentService.GetAsync(stripeSession.PaymentIntentId, new PaymentIntentGetOptions
-                            {
-                                Expand = new List<string>(new[]
+                            var paymentIntent = await paymentIntentService.GetAsync(
+                                stripeSession.PaymentIntentId,
+                                new PaymentIntentGetOptions
                                 {
-                                    "latest_charge",
-                                    "review"
-                                })
-                            },
-                            cancellationToken: cancellationToken).ConfigureAwait(false);
+                                    Expand = new List<string>(new []
+                                    {
+                                        "latest_charge",
+                                        "review"
+                                    })
+                                },
+                                cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             return CallbackResult.Ok(
                                 new TransactionInfo
@@ -374,18 +376,20 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                         else if (stripeSession.Mode == "subscription")
                         {
                             var subscriptionService = new SubscriptionService();
-                            var subscription = await subscriptionService.GetAsync(stripeSession.SubscriptionId, new SubscriptionGetOptions
-                            { 
-                                Expand = new List<string>(new[]
+                            var subscription = await subscriptionService.GetAsync(
+                                stripeSession.SubscriptionId,
+                                new SubscriptionGetOptions
                                 { 
-                                    "latest_invoice",
-                                    "latest_invoice.charge",
-                                    "latest_invoice.charge.review",
-                                    "latest_invoice.payment_intent",
-                                    "latest_invoice.payment_intent.review"
-                                })
-                            },
-                            cancellationToken: cancellationToken).ConfigureAwait(false);
+                                    Expand = new List<string>(new[]
+                                    { 
+                                        "latest_invoice",
+                                        "latest_invoice.charge",
+                                        "latest_invoice.charge.review",
+                                        "latest_invoice.payment_intent",
+                                        "latest_invoice.payment_intent.review"
+                                    })
+                                },
+                                cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             var invoice = subscription.LatestInvoice;
 
@@ -413,14 +417,17 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                         if (stripeEvent.Data?.Object?.Instance is Review stripeReview && !string.IsNullOrWhiteSpace(stripeReview.PaymentIntentId))
                         {
                             var paymentIntentService = new PaymentIntentService();
-                            var paymentIntent = paymentIntentService.Get(stripeReview.PaymentIntentId, new PaymentIntentGetOptions
-                            {
-                                Expand = new List<string>(new[]
+                            var paymentIntent = await paymentIntentService.GetAsync(
+                                stripeReview.PaymentIntentId,
+                                new PaymentIntentGetOptions
                                 {
-                                    "latest_charge",
-                                    "review"
-                                })
-                            });
+                                    Expand = new List<string>(new[]
+                                    {
+                                        "latest_charge",
+                                        "review"
+                                    })
+                                },
+                                cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             return CallbackResult.Ok(
                                 new TransactionInfo
@@ -566,7 +573,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     Charge = chargeId
                 };
 
-                var refund = refundService.Create(refundCreateOptions);
+                var refund = await refundService.CreateAsync(refundCreateOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
                 var charge = refund.Charge ?? await new ChargeService().GetAsync(refund.ChargeId, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 // If we have a subscription then we'll cancel it as refunding an ctx.Order
@@ -577,11 +584,14 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     var subscription = await subscriptionService.GetAsync(ctx.Order.Properties["stripeSubscriptionId"], cancellationToken: cancellationToken).ConfigureAwait(false);
                     if (subscription != null)
                     {
-                        subscriptionService.Cancel(ctx.Order.Properties["stripeSubscriptionId"], new SubscriptionCancelOptions
-                        {
-                            InvoiceNow = false,
-                            Prorate = false
-                        });
+                        await subscriptionService.CancelAsync(
+                            ctx.Order.Properties["stripeSubscriptionId"],
+                            new SubscriptionCancelOptions
+                            {
+                                InvoiceNow = false,
+                                Prorate = false
+                            },
+                            cancellationToken: cancellationToken).ConfigureAwait(false);
                     }
                 }
 
