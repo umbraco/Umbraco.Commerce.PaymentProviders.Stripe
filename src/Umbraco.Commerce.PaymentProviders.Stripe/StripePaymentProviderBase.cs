@@ -1,18 +1,17 @@
-using Newtonsoft.Json;
-using Stripe;
-using Stripe.Checkout;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Stripe;
+using Stripe.Checkout;
 using Umbraco.Commerce.Common.Logging;
 using Umbraco.Commerce.Core.Api;
 using Umbraco.Commerce.Core.Models;
 using Umbraco.Commerce.Core.PaymentProviders;
-
 using StripeTaxRate = Stripe.TaxRate;
 
 namespace Umbraco.Commerce.PaymentProviders.Stripe
@@ -192,7 +191,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                         // Parse the event ourselves to our custom webhook event model
                         // as it only captures minimal object information.
-                        stripeEvent = JsonConvert.DeserializeObject<StripeWebhookEvent>(json);
+                        stripeEvent = JsonSerializer.Deserialize<StripeWebhookEvent>(json);
 
                         // We manually fetch the event object type ourself as it means it will be fetched
                         // using the same API version as the payment providers is coded against.
