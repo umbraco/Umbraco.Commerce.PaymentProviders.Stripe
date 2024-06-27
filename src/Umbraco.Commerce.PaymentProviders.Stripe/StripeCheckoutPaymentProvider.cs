@@ -1,5 +1,3 @@
-using Stripe;
-using Stripe.Checkout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,19 +5,21 @@ using System.Net.Http;
 using System.Net.Http.Formatting;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http.Extensions;
+using Stripe;
+using Stripe.Checkout;
 using Umbraco.Commerce.Common.Logging;
 using Umbraco.Commerce.Core;
 using Umbraco.Commerce.Core.Api;
 using Umbraco.Commerce.Core.Models;
 using Umbraco.Commerce.Core.PaymentProviders;
 using Umbraco.Commerce.Extensions;
-
 using CustomerService = Stripe.CustomerService;
 using RefundService = Stripe.RefundService;
 
 namespace Umbraco.Commerce.PaymentProviders.Stripe
 {
-    [PaymentProvider("stripe-checkout", "Stripe Checkout", "Stripe Checkout payment provider for one time and subscription payments")]
+    [PaymentProvider("stripe-checkout")]
     public class StripeCheckoutPaymentProvider : StripePaymentProviderBase<StripeCheckoutPaymentProvider, StripeCheckoutSettings>
     {
         public StripeCheckoutPaymentProvider(UmbracoCommerceContext ctx, ILogger<StripeCheckoutPaymentProvider> logger)
@@ -244,15 +244,17 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             };
         }
 
-        public override async Task<CallbackResult> ProcessCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
+        public override async Task<CallbackResult> ProcessCallbackAsync(PaymentProviderContext<StripeCheckoutSettings> context, CancellationToken cancellationToken = default)
         {
-            if (ctx.Request.RequestUri.Query.Contains("create=paymentIntent"))
+            ArgumentNullException.ThrowIfNull(context);
+
+            if (context.HttpContext.Request.GetEncodedPathAndQuery().Contains("create=paymentIntent", StringComparison.InvariantCultureIgnoreCase))
             {
-                return await ProcessCreatePaymentIntentCallbackAsync(ctx);
+                return await ProcessCreatePaymentIntentCallbackAsync(context, cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                return await ProcessWebhookCallbackAsync(ctx);
+                return await ProcessWebhookCallbackAsync(context, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -347,7 +349,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                 stripeSession.PaymentIntentId,
                                 new PaymentIntentGetOptions
                                 {
-                                    Expand = new List<string>(new []
+                                    Expand = new List<string>(new[]
                                     {
                                         "latest_charge",
                                         "review"
@@ -379,9 +381,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                             var subscription = await subscriptionService.GetAsync(
                                 stripeSession.SubscriptionId,
                                 new SubscriptionGetOptions
-                                { 
+                                {
                                     Expand = new List<string>(new[]
-                                    { 
+                                    {
                                         "latest_invoice",
                                         "latest_invoice.charge",
                                         "latest_invoice.charge.review",
