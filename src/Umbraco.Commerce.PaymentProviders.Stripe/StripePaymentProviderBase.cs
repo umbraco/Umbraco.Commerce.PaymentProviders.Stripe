@@ -22,18 +22,51 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
     {
         protected ILogger<TSelf> Logger { get; }
 
-        private static string[] SUPPORTED_LOCALES = new[]
-        {
-            "bg","cs","da","de","el","en",
-            "en-GB","es","es-419","et","fi","fil",
-            "fr","fr-CA","hr","hu","id","it",
-            "ja","ko","lt","lv","ms","mt",
-            "nb","nl","pl","pt","pt-BR","ro",
-            "ru","sk","sl","sv","th","tr",
-            "vi","zh","zh-HK","zh-TW"
-        };
+        private static readonly string[] SUPPORTED_LOCALES =
+        [
+            "bg",
+            "cs",
+            "da",
+            "de",
+            "el",
+            "en",
+            "en-GB",
+            "es",
+            "es-419",
+            "et",
+            "fi",
+            "fil",
+            "fr",
+            "fr-CA",
+            "hr",
+            "hu",
+            "id",
+            "it",
+            "ja",
+            "ko",
+            "lt",
+            "lv",
+            "ms",
+            "mt",
+            "nb",
+            "nl",
+            "pl",
+            "pt",
+            "pt-BR",
+            "ro",
+            "ru",
+            "sk",
+            "sl",
+            "sv",
+            "th",
+            "tr",
+            "vi",
+            "zh",
+            "zh-HK",
+            "zh-TW"
+        ];
 
-        public StripePaymentProviderBase(
+        protected StripePaymentProviderBase(
             UmbracoCommerceContext ctx,
             ILogger<TSelf> logger)
             : base(ctx)
@@ -99,7 +132,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 Logger.Error(ex, "Stripe - GetOrderReference");
             }
 
-            return await base.GetOrderReferenceAsync(ctx).ConfigureAwait(false);
+            return await base.GetOrderReferenceAsync(ctx, cancellationToken).ConfigureAwait(false);
         }
 
         protected async Task<StripeTaxRate> GetOrCreateStripeTaxRateAsync(PaymentProviderContext<TSettings> ctx, string taxName, decimal percentage, bool inclusive, CancellationToken cancellationToken = default)
@@ -157,7 +190,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return newTaxRate;
         }
 
-        private StripeTaxRate GetStripeTaxRate(IEnumerable<StripeTaxRate> taxRates, string taxName, decimal percentage, bool inclusive)
+        private static StripeTaxRate GetStripeTaxRate(IEnumerable<StripeTaxRate> taxRates, string taxName, decimal percentage, bool inclusive)
         {
             return taxRates.FirstOrDefault(x => x.Percentage == percentage && x.Inclusive == inclusive && x.DisplayName == taxName);
         }
@@ -174,7 +207,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             {
                 try
                 {
-                    var stream = await ctx.Request.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                    Stream stream = ctx.HttpContext.Request.Body;
 
                     if (stream.CanSeek)
                     {
@@ -184,7 +217,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     using (var reader = new StreamReader(stream, Encoding.UTF8))
                     {
                         var json = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-                        var stripeSignature = ctx.Request.Headers.GetValues("Stripe-Signature").FirstOrDefault();
+                        var stripeSignature = ctx.HttpContext.Request.Headers["Stripe-Signature"].FirstOrDefault();
 
                         // Just validate the webhook signature
                         EventUtility.ValidateSignature(json, stripeSignature, webhookSigningSecret);
@@ -334,7 +367,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             PaymentStatus paymentState = PaymentStatus.Initialized;
 
             if (charge == null)
+            {
                 return paymentState;
+            }
 
             if (charge.Paid)
             {

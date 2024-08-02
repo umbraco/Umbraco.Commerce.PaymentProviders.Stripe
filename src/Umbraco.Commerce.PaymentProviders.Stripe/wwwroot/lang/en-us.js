@@ -1,5 +1,5 @@
 export default {
-    paymentProviders: {
+    ucPaymentProviders: {
         'stripeCheckoutLabel': 'Stripe Checkout',
         'stripeCheckoutDescription': 'Stripe Checkout payment provider for one time and subscription payments',
         'stripeCheckoutSettingsContinueUrlLabel': 'Continue URL',
@@ -52,7 +52,6 @@ export default {
         'stripeCheckoutSettingsSendStripeReceiptDescription': 'Flag indicating whether to send a Stripe receipt to the customer. Receipts are only sent when in live mode',
 
         // ========== Advanced Settings ==========
-
         'stripeCheckoutSettingsOrderHeadingLabel': 'Order Heading',
         'stripeCheckoutSettingsOrderHeadingDescription': 'A heading to display on the order summary of the Stripe Checkout screen',
 
@@ -67,5 +66,14 @@ export default {
 
         'stripeCheckoutSettingsPaymentMethodTypesLabel': 'Payment Method Types',
         'stripeCheckoutSettingsPaymentMethodTypesDescription': 'A comma separated list of Stripe payment method types to use. Defaults to just \'card\' if left empty',
+
+        // ============= metadata ================
+        'stripeCheckoutMetaDataStripeSessionIdLabel': 'Stripe Session ID',
+        'stripeCheckoutMetaDataStripeCustomerIdLabel': 'Stripe Customer ID',
+        'stripeCheckoutMetaDataStripePaymentIntentIdLabel': 'Stripe Payment Intent ID',
+        'stripeCheckoutMetaDataStripeSubscriptionIdLabel': 'Stripe Subscription ID',
+        'stripeCheckoutMetaDataStripeChargeIdLabel': 'Stripe Charge ID',
+        'stripeCheckoutMetaDataStripeCardCountryLabel': 'Stripe Card Country',
+
     },
 };

@@ -35,12 +35,12 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
         public override bool FinalizeAtContinueUrl => false;
 
         public override IEnumerable<TransactionMetaDataDefinition> TransactionMetaDataDefinitions => new[]{
-            new TransactionMetaDataDefinition("stripeSessionId", "Stripe Session ID"),
-            new TransactionMetaDataDefinition("stripeCustomerId", "Stripe Customer ID"),
-            new TransactionMetaDataDefinition("stripePaymentIntentId", "Stripe Payment Intent ID"),
-            new TransactionMetaDataDefinition("stripeSubscriptionId", "Stripe Subscription ID"),
-            new TransactionMetaDataDefinition("stripeChargeId", "Stripe Charge ID"),
-            new TransactionMetaDataDefinition("stripeCardCountry", "Stripe Card Country")
+            new TransactionMetaDataDefinition("stripeSessionId"),
+            new TransactionMetaDataDefinition("stripeCustomerId"),
+            new TransactionMetaDataDefinition("stripePaymentIntentId"),
+            new TransactionMetaDataDefinition("stripeSubscriptionId"),
+            new TransactionMetaDataDefinition("stripeChargeId"),
+            new TransactionMetaDataDefinition("stripeCardCountry"),
         };
 
         public override async Task<PaymentFormResult> GenerateFormAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
