@@ -1,8 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <Title>Umbraco Commerce Stripe Payment Provider</Title>
     <Description>Stripe payment provider for Umbraco Commerce</Description>
+    <StaticWebAssetBasePath>App_Plugins/UmbracoCommerceStripePaymentProvider</StaticWebAssetBasePath>
   </PropertyGroup>
 
   <ItemGroup>
