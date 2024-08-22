@@ -4,13 +4,13 @@
     "extensions": [
         {
             "type": "localization",
-            "alias": "UmbracoCommerce.PaymentProviders.Stripe.Localization.En_US",
+            "alias": "UmbracoCommerce.PaymentProviders.Stripe.Localization.En",
             "weight": -100,
-            "name": "English (US)",
+            "name": "English",
             "meta": {
-                "culture": "en-us"
+                "culture": "en"
             },
-            "js": "/App_Plugins/UmbracoCommerceStripePaymentProvider/lang/en-us.js"
+            "js": "/App_Plugins/UmbracoCommerceStripePaymentProvider/lang/en.js"
         }
     ],
     "version": ""
