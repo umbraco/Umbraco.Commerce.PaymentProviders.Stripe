@@ -224,23 +224,15 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     { "stripeSessionId", session.Id },
                     { "stripeCustomerId", session.CustomerId }
                 },
-                Form = new PaymentForm(ctx.Urls.ContinueUrl, PaymentFormMethod.Post)
+                Form = new PaymentForm(ctx.Urls.ErrorUrl, PaymentFormMethod.Post)
                     .WithAttribute("onsubmit", "return handleStripeCheckout(event)")
-                    .WithJsFile("https://js.stripe.com/v3/")
                     .WithJs(@"
-                        var stripe = Stripe('" + publicKey + @"');
                         window.handleStripeCheckout = function (e) {
                             e.preventDefault();
-                            stripe.redirectToCheckout({
-                                sessionId: '" + session.Id + @"'
-                            }).then(function (result) {
-                              // If `redirectToCheckout` fails due to a browser or network
-                              // error, display the localized error message to your customer
-                              // using `result.error.message`.
-                            });
+                            window.location.href = '" + session.Url + @"';
                             return false;
                         }
-                    ")
+                    "),
             };
         }
 
