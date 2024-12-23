@@ -1,5 +1,3 @@
-using Stripe;
-using Stripe.Checkout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,13 +5,14 @@ using System.Net.Http;
 using System.Net.Http.Formatting;
 using System.Threading;
 using System.Threading.Tasks;
+using Stripe;
+using Stripe.Checkout;
 using Umbraco.Commerce.Common.Logging;
 using Umbraco.Commerce.Core;
 using Umbraco.Commerce.Core.Api;
 using Umbraco.Commerce.Core.Models;
 using Umbraco.Commerce.Core.PaymentProviders;
 using Umbraco.Commerce.Extensions;
-
 using CustomerService = Stripe.CustomerService;
 using RefundService = Stripe.RefundService;
 
@@ -224,23 +223,15 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     { "stripeSessionId", session.Id },
                     { "stripeCustomerId", session.CustomerId }
                 },
-                Form = new PaymentForm(ctx.Urls.ContinueUrl, PaymentFormMethod.Post)
+                Form = new PaymentForm(ctx.Urls.ErrorUrl, PaymentFormMethod.Post)
                     .WithAttribute("onsubmit", "return handleStripeCheckout(event)")
-                    .WithJsFile("https://js.stripe.com/v3/")
                     .WithJs(@"
-                        var stripe = Stripe('" + publicKey + @"');
                         window.handleStripeCheckout = function (e) {
                             e.preventDefault();
-                            stripe.redirectToCheckout({
-                                sessionId: '" + session.Id + @"'
-                            }).then(function (result) {
-                              // If `redirectToCheckout` fails due to a browser or network
-                              // error, display the localized error message to your customer
-                              // using `result.error.message`.
-                            });
+                            window.location.href = '" + session.Url + @"';
                             return false;
                         }
-                    ")
+                    "),
             };
         }
 
@@ -347,7 +338,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                 stripeSession.PaymentIntentId,
                                 new PaymentIntentGetOptions
                                 {
-                                    Expand = new List<string>(new []
+                                    Expand = new List<string>(new[]
                                     {
                                         "latest_charge",
                                         "review"
@@ -379,9 +370,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                             var subscription = await subscriptionService.GetAsync(
                                 stripeSession.SubscriptionId,
                                 new SubscriptionGetOptions
-                                { 
+                                {
                                     Expand = new List<string>(new[]
-                                    { 
+                                    {
                                         "latest_invoice",
                                         "latest_invoice.charge",
                                         "latest_invoice.charge.review",
