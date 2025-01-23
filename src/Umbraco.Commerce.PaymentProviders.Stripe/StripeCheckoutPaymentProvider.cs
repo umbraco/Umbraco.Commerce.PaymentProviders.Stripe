@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Formatting;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http.Extensions;
+using Microsoft.AspNetCore.Mvc;
 using Stripe;
 using Stripe.Checkout;
 using Umbraco.Commerce.Common.Logging;
@@ -50,9 +50,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
             ConfigureStripe(secretKey);
 
-            var currency = Context.Services.CurrencyService.GetCurrency(ctx.Order.CurrencyId);
+            var currency = await Context.Services.CurrencyService.GetCurrencyAsync(ctx.Order.CurrencyId);
 
-            var customer = GetOrCreateStripeCustomer(ctx);
+            var customer = await GetOrCreateStripeCustomerAsync(ctx);
             var metaData = CreateOrderStripeMetaData(ctx);
 
             var hasRecurringItems = false;
@@ -256,9 +256,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
             ConfigureStripe(secretKey);
 
-            var currency = Context.Services.CurrencyService.GetCurrency(ctx.Order.CurrencyId);
+            var currency = await Context.Services.CurrencyService.GetCurrencyAsync(ctx.Order.CurrencyId);
 
-            var customer = GetOrCreateStripeCustomer(ctx);
+            var customer = await GetOrCreateStripeCustomerAsync(ctx);
             var metaData = CreateOrderStripeMetaData(ctx);
 
             var paymentIntentService = new PaymentIntentService();
@@ -286,13 +286,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
             return new CallbackResult
             {
-                HttpResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-                {
-                    Content = new ObjectContent<object>(
-                        new { clientSecret = paymentIntent.ClientSecret },
-                        new JsonMediaTypeFormatter(),
-                        JsonMediaTypeFormatter.DefaultMediaType.MediaType)
-                }
+                ActionResult = new JsonResult(new { clientSecret = paymentIntent.ClientSecret })
             };
         }
 
@@ -309,7 +303,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 ConfigureStripe(secretKey);
 
                 var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret, cancellationToken).ConfigureAwait(false);
-                if (stripeEvent != null && stripeEvent.Type == Events.PaymentIntentSucceeded)
+                if (stripeEvent != null && stripeEvent.Type == EventTypes.PaymentIntentSucceeded)
                 {
                     if (stripeEvent.Data?.Object?.Instance is PaymentIntent paymentIntent)
                     {
@@ -330,7 +324,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                         );
                     }
                 }
-                else if (stripeEvent != null && stripeEvent.Type == Events.CheckoutSessionCompleted)
+                else if (stripeEvent != null && stripeEvent.Type == EventTypes.CheckoutSessionCompleted)
                 {
                     if (stripeEvent.Data?.Object?.Instance is Session stripeSession)
                     {
@@ -406,7 +400,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                             );
                         }
                     }
-                    else if (stripeEvent != null && stripeEvent.Type == Events.ReviewClosed)
+                    else if (stripeEvent != null && stripeEvent.Type == EventTypes.ReviewClosed)
                     {
                         if (stripeEvent.Data?.Object?.Instance is Review stripeReview && !string.IsNullOrWhiteSpace(stripeReview.PaymentIntentId))
                         {
@@ -660,14 +654,14 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 && (props[propAlias] == "1" || props[propAlias].Value.Equals("true", StringComparison.OrdinalIgnoreCase));
         }
 
-        private Customer GetOrCreateStripeCustomer(PaymentProviderContext<StripeCheckoutSettings> ctx)
+        private async Task<Customer> GetOrCreateStripeCustomerAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
         {
             Customer customer;
 
             var customerService = new CustomerService();
 
             var billingCountry = ctx.Order.PaymentInfo.CountryId.HasValue
-                ? Context.Services.CountryService.GetCountry(ctx.Order.PaymentInfo.CountryId.Value)
+                ? await Context.Services.CountryService.GetCountryAsync(ctx.Order.PaymentInfo.CountryId.Value)
                 : null;
 
             if (!string.IsNullOrWhiteSpace(ctx.Order.Properties["stripeCustomerId"]))
