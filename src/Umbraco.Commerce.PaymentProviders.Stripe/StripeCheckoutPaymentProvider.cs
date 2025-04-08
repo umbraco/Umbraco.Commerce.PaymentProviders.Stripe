@@ -1,7 +1,7 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http.Extensions;
@@ -22,14 +22,18 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
     [PaymentProvider("stripe-checkout")]
     public class StripeCheckoutPaymentProvider : StripePaymentProviderBase<StripeCheckoutPaymentProvider, StripeCheckoutSettings>
     {
-        public StripeCheckoutPaymentProvider(UmbracoCommerceContext ctx, ILogger<StripeCheckoutPaymentProvider> logger)
+        public StripeCheckoutPaymentProvider(
+            UmbracoCommerceContext ctx,
+            ILogger<StripeCheckoutPaymentProvider> logger)
             : base(ctx, logger)
-        { }
+        {
+        }
 
         public override bool CanFetchPaymentStatus => true;
         public override bool CanCapturePayments => true;
         public override bool CanCancelPayments => true;
         public override bool CanRefundPayments => true;
+        public override bool CanPartiallyRefundPayments => true;
 
         // Don't finalize at continue as we will finalize async via webhook
         public override bool FinalizeAtContinueUrl => false;
@@ -541,43 +545,68 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return ApiResult.Empty;
         }
 
-        public override async Task<ApiResult> RefundPaymentAsync(PaymentProviderContext<StripeCheckoutSettings> ctx, CancellationToken cancellationToken = default)
+        [Obsolete("Will be removed in v17. Use the overload that takes an order refund request")]
+        public override async Task<ApiResult?> RefundPaymentAsync(PaymentProviderContext<StripeCheckoutSettings> context, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(context);
+
+            StoreReadOnly store = await Context.Services.StoreService.GetStoreAsync(context.Order.StoreId);
+            Amount refundAmount = store.CanRefundTransactionFee ? context.Order.TransactionInfo.AmountAuthorized + context.Order.TransactionInfo.TransactionFee : context.Order.TransactionInfo.AmountAuthorized;
+            return await this.RefundPaymentAsync(
+                context,
+                new PaymentProviderOrderRefundRequest
+                {
+                    RefundAmount = refundAmount,
+                    Orderlines = [],
+                },
+                cancellationToken);
+        }
+
+        public override async Task<ApiResult?> RefundPaymentAsync(
+            PaymentProviderContext<StripeCheckoutSettings> context,
+            PaymentProviderOrderRefundRequest refundRequest,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(refundRequest);
+
             try
             {
                 // We can only refund a captured charge, so make sure we have one
                 // otherwise there is nothing we can do
-                var chargeId = ctx.Order.Properties["stripeChargeId"];
+                PropertyValue chargeId = context.Order.Properties["stripeChargeId"];
                 if (string.IsNullOrWhiteSpace(chargeId))
+                {
                     return null;
+                }
 
-                var secretKey = ctx.Settings.TestMode ? ctx.Settings.TestSecretKey : ctx.Settings.LiveSecretKey;
-
+                string secretKey = context.Settings.TestMode ? context.Settings.TestSecretKey : context.Settings.LiveSecretKey;
                 ConfigureStripe(secretKey);
 
-                var refundService = new RefundService();
                 var refundCreateOptions = new RefundCreateOptions()
                 {
-                    Charge = chargeId
+                    Charge = chargeId,
+                    Amount = AmountToMinorUnits(refundRequest.RefundAmount),
                 };
 
-                var refund = await refundService.CreateAsync(refundCreateOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
-                var charge = refund.Charge ?? await new ChargeService().GetAsync(refund.ChargeId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                RefundService refundService = new();
+                Refund refund = await refundService.CreateAsync(refundCreateOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+                Charge charge = refund.Charge ?? await new ChargeService().GetAsync(refund.ChargeId, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 // If we have a subscription then we'll cancel it as refunding an ctx.Order
                 // should effecitvely undo any purchase
-                if (!string.IsNullOrWhiteSpace(ctx.Order.Properties["stripeSubscriptionId"]))
+                if (!string.IsNullOrWhiteSpace(context.Order.Properties["stripeSubscriptionId"]))
                 {
-                    var subscriptionService = new SubscriptionService();
-                    var subscription = await subscriptionService.GetAsync(ctx.Order.Properties["stripeSubscriptionId"], cancellationToken: cancellationToken).ConfigureAwait(false);
+                    SubscriptionService subscriptionService = new();
+                    Subscription subscription = await subscriptionService.GetAsync(context.Order.Properties["stripeSubscriptionId"], cancellationToken: cancellationToken).ConfigureAwait(false);
                     if (subscription != null)
                     {
                         await subscriptionService.CancelAsync(
-                            ctx.Order.Properties["stripeSubscriptionId"],
+                            context.Order.Properties["stripeSubscriptionId"],
                             new SubscriptionCancelOptions
                             {
                                 InvoiceNow = false,
-                                Prorate = false
+                                Prorate = false,
                             },
                             cancellationToken: cancellationToken).ConfigureAwait(false);
                     }
