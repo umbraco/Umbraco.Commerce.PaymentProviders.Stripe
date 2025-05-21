@@ -375,33 +375,38 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                     Expand = new List<string>(new[]
                                     {
                                         "latest_invoice",
-                                        "latest_invoice.charge",
-                                        "latest_invoice.charge.review",
-                                        "latest_invoice.payment_intent",
-                                        "latest_invoice.payment_intent.review"
+                                        "latest_invoice.payments",
+                                        "latest_invoice.payments.payment",
+                                        "latest_invoice.payments.payment.payment_intent",
+                                        "latest_invoice.payments.payment.payment_intent.review",
+                                        "latest_invoice.payments.payment.charge",
+                                        "latest_invoice.payments.payment.charge.review"
                                     })
                                 },
                                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             var invoice = subscription.LatestInvoice;
-
-                            return CallbackResult.Ok(
-                                new TransactionInfo
-                                {
-                                    TransactionId = GetTransactionId(invoice),
-                                    AmountAuthorized = AmountFromMinorUnits(invoice.PaymentIntent.Amount),
-                                    PaymentStatus = GetPaymentStatus(invoice)
-                                },
-                                new Dictionary<string, string>
-                                {
-                                    { "stripeSessionId", stripeSession.Id },
-                                    { "stripeCustomerId", stripeSession.CustomerId },
-                                    { "stripePaymentIntentId", invoice.PaymentIntentId },
-                                    { "stripeSubscriptionId", stripeSession.SubscriptionId },
-                                    { "stripeChargeId", invoice.ChargeId },
-                                    { "stripeCardCountry", invoice.Charge?.PaymentMethodDetails?.Card?.Country }
-                                }
-                            );
+                            var lastPayment = invoice.Payments.LastOrDefault()?.Payment;
+                            if (lastPayment != null)
+                            {
+                                return CallbackResult.Ok(
+                                    new TransactionInfo
+                                    {
+                                        TransactionId = GetTransactionId(invoice),
+                                        AmountAuthorized = AmountFromMinorUnits(lastPayment.PaymentIntent.Amount),
+                                        PaymentStatus = GetPaymentStatus(invoice)
+                                    },
+                                    new Dictionary<string, string>
+                                    {
+                                        { "stripeSessionId", stripeSession.Id },
+                                        { "stripeCustomerId", stripeSession.CustomerId },
+                                        { "stripePaymentIntentId", lastPayment.PaymentIntentId },
+                                        { "stripeSubscriptionId", stripeSession.SubscriptionId },
+                                        { "stripeChargeId", lastPayment.ChargeId },
+                                        { "stripeCardCountry", lastPayment.Charge?.PaymentMethodDetails?.Card?.Country ?? "Unknown" }
+                                    }
+                                );
+                            }
                         }
                     }
                     else if (stripeEvent != null && stripeEvent.Type == EventTypes.ReviewClosed)
