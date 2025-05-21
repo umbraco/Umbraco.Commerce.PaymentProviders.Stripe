@@ -286,7 +286,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
         protected string GetTransactionId(Invoice invoice)
         {
-            return invoice?.ChargeId;
+            return invoice?.Payments.LastOrDefault()?.Payment.PaymentIntent.LatestChargeId;
         }
 
         protected string GetTransactionId(Charge charge)
@@ -304,24 +304,38 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             // - uncollectible
 
             if (invoice.Status == "void")
+            {
                 return PaymentStatus.Cancelled;
+            }
 
             if (invoice.Status == "open")
+            {
                 return PaymentStatus.Authorized;
+            }
 
             if (invoice.Status == "paid")
             {
-                if (invoice.PaymentIntent != null)
-                    return GetPaymentStatus(invoice.PaymentIntent);
+                var lastPayment = invoice.Payments.LastOrDefault();
+                if (lastPayment != null)
+                {
+                    if (lastPayment.Payment.PaymentIntent != null)
+                    {
+                        return GetPaymentStatus(lastPayment.Payment.PaymentIntent);
+                    }
 
-                if (invoice.Charge != null)
-                    return GetPaymentStatus(invoice.Charge);
+                    if (lastPayment.Payment.Charge != null)
+                    {
+                        return GetPaymentStatus(lastPayment.Payment.Charge);
+                    }
+                }
 
                 return PaymentStatus.Captured;
             }
 
             if (invoice.Status == "uncollectible")
+            {
                 return PaymentStatus.Error;
+            }
 
             return PaymentStatus.Initialized;
         }
