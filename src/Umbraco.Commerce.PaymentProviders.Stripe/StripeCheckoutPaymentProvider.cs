@@ -375,35 +375,44 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                     Expand = new List<string>(new[]
                                     {
                                         "latest_invoice",
-                                        "latest_invoice.payments",
-                                        "latest_invoice.payments.payment",
-                                        "latest_invoice.payments.payment.payment_intent",
-                                        "latest_invoice.payments.payment.payment_intent.review",
-                                        "latest_invoice.payments.payment.charge",
-                                        "latest_invoice.payments.payment.charge.review"
+                                        "latest_invoice.payments"
                                     })
                                 },
                                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             var invoice = subscription.LatestInvoice;
-                            var lastPayment = invoice.Payments.LastOrDefault()?.Payment;
-                            if (lastPayment != null)
+                            var defaultPayment = invoice.Payments.FirstOrDefault(x => x.IsDefault)
+                                ?? invoice.Payments.LastOrDefault();
+                            if (defaultPayment != null)
                             {
+                                var paymentIntentService = new PaymentIntentService();
+                                var defaultPaymentIntent = await paymentIntentService.GetAsync(
+                                    defaultPayment.Payment.PaymentIntentId,
+                                    new PaymentIntentGetOptions
+                                    {
+                                        Expand = new List<string>(new[]
+                                        {
+                                            "latest_charge",
+                                            "review"
+                                        })
+                                    },
+                                    cancellationToken: cancellationToken).ConfigureAwait(false);
+
                                 return CallbackResult.Ok(
                                     new TransactionInfo
                                     {
-                                        TransactionId = GetTransactionId(invoice),
-                                        AmountAuthorized = AmountFromMinorUnits(lastPayment.PaymentIntent.Amount),
-                                        PaymentStatus = GetPaymentStatus(invoice)
+                                        TransactionId = GetTransactionId(defaultPaymentIntent),
+                                        AmountAuthorized = AmountFromMinorUnits(defaultPaymentIntent.Amount),
+                                        PaymentStatus = GetPaymentStatus(invoice, defaultPaymentIntent)
                                     },
                                     new Dictionary<string, string>
                                     {
                                         { "stripeSessionId", stripeSession.Id },
                                         { "stripeCustomerId", stripeSession.CustomerId },
-                                        { "stripePaymentIntentId", lastPayment.PaymentIntentId },
+                                        { "stripePaymentIntentId", defaultPaymentIntent.Id },
                                         { "stripeSubscriptionId", stripeSession.SubscriptionId },
-                                        { "stripeChargeId", lastPayment.ChargeId },
-                                        { "stripeCardCountry", lastPayment.Charge?.PaymentMethodDetails?.Card?.Country ?? "Unknown" }
+                                        { "stripeChargeId", defaultPaymentIntent.LatestChargeId },
+                                        { "stripeCardCountry", defaultPaymentIntent.LatestCharge?.PaymentMethodDetails?.Card?.Country ?? "Unknown" }
                                     }
                                 );
                             }
