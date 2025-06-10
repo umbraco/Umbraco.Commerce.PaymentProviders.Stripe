@@ -203,6 +203,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 {
                     Metadata = metaData
                 };
+
+                // Note: For subscriptions, Stripe automatically sends invoice receipts to the customer's email.
+                // No explicit ReceiptEmail setting is needed as it uses the customer's email from the session.
             }
             else
             {
@@ -211,11 +214,11 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     CaptureMethod = ctx.Settings.Capture ? "automatic" : "manual",
                     Metadata = metaData
                 };
-            }
 
-            if (ctx.Settings.SendStripeReceipt)
-            {
-                sessionOptions.PaymentIntentData.ReceiptEmail = ctx.Order.CustomerInfo.Email;
+                if (ctx.Settings.SendStripeReceipt)
+                {
+                    sessionOptions.PaymentIntentData.ReceiptEmail = ctx.Order.CustomerInfo.Email;
+                }
             }
 
             var sessionService = new SessionService();
