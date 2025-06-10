@@ -204,8 +204,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     Metadata = metaData
                 };
 
-                // Note: For subscriptions, Stripe automatically sends invoice receipts to the customer's email.
-                // No explicit ReceiptEmail setting is needed as it uses the customer's email from the session.
+                // Note: For subscriptions, Stripe generates invoices automatically and sends receipt emails
+                // based on the dashboard setting "Email customers about successful payments" in Settings > Emails.
+                // No explicit ReceiptEmail setting is available for subscription mode.
             }
             else
             {
