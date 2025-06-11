@@ -203,6 +203,10 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 {
                     Metadata = metaData
                 };
+
+                // Note: For subscriptions, Stripe generates invoices automatically and sends receipt emails
+                // based on the dashboard setting "Email customers about successful payments" in Settings > Emails.
+                // No explicit ReceiptEmail setting is available for subscription mode.
             }
             else
             {
@@ -211,11 +215,11 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     CaptureMethod = ctx.Settings.Capture ? "automatic" : "manual",
                     Metadata = metaData
                 };
-            }
 
-            if (ctx.Settings.SendStripeReceipt)
-            {
-                sessionOptions.PaymentIntentData.ReceiptEmail = ctx.Order.CustomerInfo.Email;
+                if (ctx.Settings.SendStripeReceipt)
+                {
+                    sessionOptions.PaymentIntentData.ReceiptEmail = ctx.Order.CustomerInfo.Email;
+                }
             }
 
             var sessionService = new SessionService();
@@ -375,33 +379,47 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                     Expand = new List<string>(new[]
                                     {
                                         "latest_invoice",
-                                        "latest_invoice.charge",
-                                        "latest_invoice.charge.review",
-                                        "latest_invoice.payment_intent",
-                                        "latest_invoice.payment_intent.review"
+                                        "latest_invoice.payments"
                                     })
                                 },
                                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             var invoice = subscription.LatestInvoice;
+                            var defaultPayment = invoice.Payments.FirstOrDefault(x => x.IsDefault)
+                                ?? invoice.Payments.LastOrDefault();
+                            if (defaultPayment != null)
+                            {
+                                var paymentIntentService = new PaymentIntentService();
+                                var defaultPaymentIntent = await paymentIntentService.GetAsync(
+                                    defaultPayment.Payment.PaymentIntentId,
+                                    new PaymentIntentGetOptions
+                                    {
+                                        Expand = new List<string>(new[]
+                                        {
+                                            "latest_charge",
+                                            "review"
+                                        })
+                                    },
+                                    cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                            return CallbackResult.Ok(
-                                new TransactionInfo
-                                {
-                                    TransactionId = GetTransactionId(invoice),
-                                    AmountAuthorized = AmountFromMinorUnits(invoice.PaymentIntent.Amount),
-                                    PaymentStatus = GetPaymentStatus(invoice)
-                                },
-                                new Dictionary<string, string>
-                                {
-                                    { "stripeSessionId", stripeSession.Id },
-                                    { "stripeCustomerId", stripeSession.CustomerId },
-                                    { "stripePaymentIntentId", invoice.PaymentIntentId },
-                                    { "stripeSubscriptionId", stripeSession.SubscriptionId },
-                                    { "stripeChargeId", invoice.ChargeId },
-                                    { "stripeCardCountry", invoice.Charge?.PaymentMethodDetails?.Card?.Country }
-                                }
-                            );
+                                return CallbackResult.Ok(
+                                    new TransactionInfo
+                                    {
+                                        TransactionId = GetTransactionId(defaultPaymentIntent),
+                                        AmountAuthorized = AmountFromMinorUnits(defaultPaymentIntent.Amount),
+                                        PaymentStatus = GetPaymentStatus(invoice, defaultPaymentIntent)
+                                    },
+                                    new Dictionary<string, string>
+                                    {
+                                        { "stripeSessionId", stripeSession.Id },
+                                        { "stripeCustomerId", stripeSession.CustomerId },
+                                        { "stripePaymentIntentId", defaultPaymentIntent.Id },
+                                        { "stripeSubscriptionId", stripeSession.SubscriptionId },
+                                        { "stripeChargeId", defaultPaymentIntent.LatestChargeId },
+                                        { "stripeCardCountry", defaultPaymentIntent.LatestCharge?.PaymentMethodDetails?.Card?.Country ?? "Unknown" }
+                                    }
+                                );
+                            }
                         }
                     }
                     else if (stripeEvent != null && stripeEvent.Type == EventTypes.ReviewClosed)

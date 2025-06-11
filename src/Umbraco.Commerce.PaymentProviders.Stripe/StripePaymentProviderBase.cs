@@ -284,17 +284,12 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return paymentIntent?.LatestChargeId;
         }
 
-        protected string GetTransactionId(Invoice invoice)
-        {
-            return invoice?.ChargeId;
-        }
-
         protected string GetTransactionId(Charge charge)
         {
             return charge?.Id;
         }
 
-        protected PaymentStatus GetPaymentStatus(Invoice invoice)
+        protected PaymentStatus GetPaymentStatus(Invoice invoice, PaymentIntent? paymentIntent)
         {
             // Possible Invoice statuses:
             // - draft
@@ -304,24 +299,24 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             // - uncollectible
 
             if (invoice.Status == "void")
+            {
                 return PaymentStatus.Cancelled;
+            }
 
             if (invoice.Status == "open")
+            {
                 return PaymentStatus.Authorized;
+            }
 
             if (invoice.Status == "paid")
             {
-                if (invoice.PaymentIntent != null)
-                    return GetPaymentStatus(invoice.PaymentIntent);
-
-                if (invoice.Charge != null)
-                    return GetPaymentStatus(invoice.Charge);
-
-                return PaymentStatus.Captured;
+                return GetPaymentStatus(paymentIntent);
             }
 
             if (invoice.Status == "uncollectible")
+            {
                 return PaymentStatus.Error;
+            }
 
             return PaymentStatus.Initialized;
         }

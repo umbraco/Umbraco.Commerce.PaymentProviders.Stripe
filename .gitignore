@@ -475,3 +475,5 @@ $RECYCLE.BIN/
 ##
 /local_pack.bat
 src/Umbraco.Commerce.PaymentProviders.Stripe/packages.lock.json
+
+.claude
