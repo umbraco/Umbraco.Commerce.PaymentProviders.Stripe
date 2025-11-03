@@ -563,23 +563,6 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             return ApiResult.Empty;
         }
 
-        [Obsolete("Will be removed in v17. Use the overload that takes an order refund request")]
-        public override async Task<ApiResult?> RefundPaymentAsync(PaymentProviderContext<StripeCheckoutSettings> context, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(context);
-
-            StoreReadOnly store = await Context.Services.StoreService.GetStoreAsync(context.Order.StoreId);
-            Amount refundAmount = store.CanRefundTransactionFee ? context.Order.TransactionInfo.AmountAuthorized + context.Order.TransactionInfo.TransactionFee : context.Order.TransactionInfo.AmountAuthorized;
-            return await this.RefundPaymentAsync(
-                context,
-                new PaymentProviderOrderRefundRequest
-                {
-                    RefundAmount = refundAmount,
-                    Orderlines = [],
-                },
-                cancellationToken);
-        }
-
         public override async Task<ApiResult?> RefundPaymentAsync(
             PaymentProviderContext<StripeCheckoutSettings> context,
             PaymentProviderOrderRefundRequest refundRequest,
@@ -679,7 +662,21 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 // so we attempt to refund it instead
                 var chargeId = ctx.Order.Properties["stripeChargeId"];
                 if (chargeId != null)
-                    return await RefundPaymentAsync(ctx, cancellationToken: cancellationToken).ConfigureAwait(false);
+                {
+                    var store = await Context.Services.StoreService.GetStoreAsync(ctx.Order.StoreId);
+                    var refundAmount = store.CanRefundTransactionFee
+                        ? ctx.Order.TransactionInfo.AmountAuthorized + ctx.Order.TransactionInfo.TransactionFee
+                        : ctx.Order.TransactionInfo.AmountAuthorized;
+
+                    return await RefundPaymentAsync(
+                        ctx,
+                        new PaymentProviderOrderRefundRequest
+                        {
+                            RefundAmount = refundAmount,
+                            Orderlines = [],
+                        },
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
             }
             catch (Exception ex)
             {
