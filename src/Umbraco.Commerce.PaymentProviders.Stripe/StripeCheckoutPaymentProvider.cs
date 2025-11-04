@@ -673,7 +673,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                         new PaymentProviderOrderRefundRequest
                         {
                             RefundAmount = refundAmount,
-                            Orderlines = [],
+                            OrderLines = [],
                         },
                         cancellationToken: cancellationToken).ConfigureAwait(false);
                 }
