@@ -4,13 +4,13 @@
   </PropertyGroup>
   <ItemGroup>
     <GlobalPackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
-    <GlobalPackageReference Include="Nerdbank.GitVersioning" Version="3.9.37-alpha" />
+    <GlobalPackageReference Include="Nerdbank.GitVersioning" Version="3.9.50" />
     <GlobalPackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
     <GlobalPackageReference Include="Umbraco.Code" Version="2.4.0" />
     <GlobalPackageReference Include="Umbraco.GitVersioning.Extensions" Version="0.2.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Stripe.net" Version="[49.2.0-beta.1, 49.999.999)" />
-    <PackageVersion Include="Umbraco.Commerce.Core" Version="[17.0.0-rc1, 17.999.999)" />
+    <PackageVersion Include="Stripe.net" Version="[49.3.0-alpha.1, 49.999.999)" />
+    <PackageVersion Include="Umbraco.Commerce.Core" Version="[17.0.0-rc2, 17.999.999)" />
   </ItemGroup>
 </Project>
