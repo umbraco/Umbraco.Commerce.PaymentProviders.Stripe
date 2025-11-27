@@ -18,7 +18,7 @@ parameters:
     default: false
 
 variables:
-  nodeVersion: 18.x
+  nodeVersion: 22.x
   solution: Umbraco.Commerce.PaymentProviders.Stripe.sln
   buildConfiguration: Release
   DOTNET_NOLOGO: true
