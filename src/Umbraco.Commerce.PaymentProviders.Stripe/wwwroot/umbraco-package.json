@@ -1,0 +1,17 @@
+{
+    "name": "Umbraco Commerce Stripe Payment Provider",
+    "$schema": "../umbraco-package-schema.json",
+    "extensions": [
+        {
+            "type": "localization",
+            "alias": "UmbracoCommerce.PaymentProviders.Stripe.Localization.En",
+            "weight": -100,
+            "name": "English",
+            "meta": {
+                "culture": "en"
+            },
+            "js": "/App_Plugins/UmbracoCommerceStripePaymentProvider/lang/en.js"
+        }
+    ],
+    "version": ""
+}

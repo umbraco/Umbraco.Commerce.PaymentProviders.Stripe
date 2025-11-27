@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
 namespace Umbraco.Commerce.PaymentProviders.Stripe
 {
@@ -10,28 +10,28 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
     // providers API version.
     public class StripeWebhookEvent
     {
-        [JsonProperty("id")]
+        [JsonPropertyName("id")]
         public string Id { get; set; }
 
-        [JsonProperty("type")]
+        [JsonPropertyName("type")]
         public string Type { get; set; }
 
-        [JsonProperty("data")]
+        [JsonPropertyName("data")]
         public StripeWebhookEventData Data { get; set; }
     }
 
     public class StripeWebhookEventData
     {
-        [JsonProperty("object")]
+        [JsonPropertyName("object")]
         public StripeWebhookEventObject Object { get; set; }
     }
 
     public class StripeWebhookEventObject
     {
-        [JsonProperty("id")]
+        [JsonPropertyName("id")]
         public string Id { get; set; }
 
-        [JsonProperty("object")]
+        [JsonPropertyName("object")]
         public string Type { get; set; }
 
         [JsonIgnore]
