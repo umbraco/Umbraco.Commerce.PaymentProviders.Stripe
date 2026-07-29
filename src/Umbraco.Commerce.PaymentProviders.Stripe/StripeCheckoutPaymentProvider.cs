@@ -303,6 +303,8 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             // The ProcessCallback method is only intendid to be called via a Stripe Webhook and so
             // it's job is to process the webhook event and finalize / update the ctx.Order accordingly
 
+            StripeWebhookEvent? stripeEvent = null;
+
             try
             {
                 var secretKey = ctx.Settings.TestMode ? ctx.Settings.TestSecretKey : ctx.Settings.LiveSecretKey;
@@ -310,7 +312,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                 ConfigureStripe(secretKey);
 
-                var stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret, cancellationToken).ConfigureAwait(false);
+                stripeEvent = await GetWebhookStripeEventAsync(ctx, webhookSigningSecret, cancellationToken).ConfigureAwait(false);
                 if (stripeEvent != null && stripeEvent.Type == EventTypes.PaymentIntentSucceeded)
                 {
                     if (stripeEvent.Data?.Object?.Instance is PaymentIntent paymentIntent)
@@ -455,6 +457,15 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             {
                 Logger.Error(ex, "Stripe - ProcessCallback");
             }
+
+            // If we reach this point the webhook event wasn't turned into a transaction update and so
+            // a bad request is returned to Stripe. Log it so that an order which fails to finalize (and
+            // may subsequently be treated as errored) can be diagnosed, rather than the webhook being
+            // silently rejected with no trace of which event type was received.
+            Logger.Warn(
+                "Stripe - ProcessCallback returning a bad request for order {OrderNumber} as the webhook event was not handled or could not be processed (event type: {StripeEventType}).",
+                ctx.Order?.OrderNumber ?? "Unknown",
+                stripeEvent?.Type ?? "Unknown");
 
             return CallbackResult.BadRequest();
         }
