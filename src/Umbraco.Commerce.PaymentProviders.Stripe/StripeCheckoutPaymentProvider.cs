@@ -223,6 +223,27 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             }
 
             var sessionService = new SessionService();
+
+            // If the order was modified after a previous session was created, that session still
+            // carries the old order reference and would otherwise stay payable until Stripe's own
+            // expiry. Close it out so it can no longer be completed against the wrong order.
+            var existingSessionId = ctx.Order.Properties["stripeSessionId"];
+            if (!string.IsNullOrWhiteSpace(existingSessionId))
+            {
+                try
+                {
+                    var existingSession = await sessionService.GetAsync(existingSessionId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    if (existingSession?.Status == "open")
+                    {
+                        await sessionService.ExpireAsync(existingSessionId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn(ex, "Stripe - Failed to expire previous checkout session {SessionId} for order {OrderNumber}", existingSessionId, ctx.Order.OrderNumber);
+                }
+            }
+
             var session = await sessionService.CreateAsync(sessionOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             return new PaymentFormResult()
