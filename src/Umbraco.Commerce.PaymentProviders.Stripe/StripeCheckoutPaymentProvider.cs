@@ -566,10 +566,15 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
 
                 ConfigureStripe(secretKey);
 
+                // Capture no more than the order's current total. A post-finalized edit (e.g. removing
+                // an order line) can reduce the order below the original authorized amount, and Commerce
+                // itself only ever records the current total as captured (PaymentService.CaptureOrderPaymentAsync).
+                var captureAmount = Math.Min(ctx.Order.TransactionAmount.Value, ctx.Order.TransactionInfo.AmountAuthorized.Value);
+
                 var paymentIntentService = new PaymentIntentService();
                 var paymentIntentOptions = new PaymentIntentCaptureOptions
                 {
-                    AmountToCapture = AmountToMinorUnits(ctx.Order.TransactionInfo.AmountAuthorized.Value)
+                    AmountToCapture = AmountToMinorUnits(captureAmount)
                 };
                 var paymentIntent = await paymentIntentService.CaptureAsync(paymentIntentId, paymentIntentOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
 
