@@ -378,6 +378,10 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                     {
                         paymentState = PaymentStatus.Refunded;
                     }
+                    else if (charge.AmountRefunded > 0)
+                    {
+                        paymentState = PaymentStatus.PartiallyRefunded;
+                    }
                 }
                 else
                 {
