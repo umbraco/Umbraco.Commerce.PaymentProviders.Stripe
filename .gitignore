@@ -477,3 +477,4 @@ $RECYCLE.BIN/
 src/Umbraco.Commerce.PaymentProviders.Stripe/packages.lock.json
 
 .claude
+tests/Umbraco.Commerce.PaymentProviders.Stripe.UnitTests/packages.lock.json
