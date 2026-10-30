@@ -10,7 +10,7 @@
     <GlobalPackageReference Include="Umbraco.GitVersioning.Extensions" Version="0.2.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Stripe.net" Version="[50.0.0, 50.999.999)" />
+    <PackageVersion Include="Stripe.net" Version="[53.1.0, 53.999.999)" />
     <PackageVersion Include="Umbraco.Commerce.Core" Version="[19.0.0-beta.1, 19.999.999)" />
   </ItemGroup>
 </Project>

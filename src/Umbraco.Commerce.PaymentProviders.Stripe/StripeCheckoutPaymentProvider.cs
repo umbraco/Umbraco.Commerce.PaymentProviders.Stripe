@@ -180,14 +180,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
             var sessionOptions = new SessionCreateOptions
             {
                 Customer = customer.Id,
-                PaymentMethodTypes = !string.IsNullOrWhiteSpace(ctx.Settings.PaymentMethodTypes)
-                    ? ctx.Settings.PaymentMethodTypes.Split(',')
-                        .Select(tag => tag.Trim())
-                        .Where(tag => !string.IsNullOrEmpty(tag))
-                        .ToList()
-                    : new List<string> {
-                        "card",
-                    },
+                AllowedPaymentMethodTypes = StripePaymentMethodTypes.Parse(ctx.Settings.PaymentMethodTypes),
                 LineItems = lineItems,
                 Mode = hasRecurringItems
                     ? "subscription"
@@ -301,14 +294,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 //{
                 //    Enabled = true,
                 //},
-                PaymentMethodTypes = !string.IsNullOrWhiteSpace(ctx.Settings.PaymentMethodTypes)
-                    ? ctx.Settings.PaymentMethodTypes.Split(',')
-                        .Select(tag => tag.Trim())
-                        .Where(tag => !string.IsNullOrEmpty(tag))
-                        .ToList()
-                    : new List<string> {
-                        "card",
-                    },
+                AllowedPaymentMethodTypes = StripePaymentMethodTypes.Parse(ctx.Settings.PaymentMethodTypes),
                 Metadata = metaData
             };
 
