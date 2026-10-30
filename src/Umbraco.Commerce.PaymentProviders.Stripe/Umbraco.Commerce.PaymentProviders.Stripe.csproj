@@ -12,4 +12,8 @@
     <PackageReference Include="Umbraco.Commerce.Core" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Umbraco.Commerce.PaymentProviders.Stripe.UnitTests" />
+  </ItemGroup>
+
 </Project>
