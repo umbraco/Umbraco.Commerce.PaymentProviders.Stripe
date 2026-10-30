@@ -40,8 +40,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe.UnitTests
         public async Task Checkout_Session_Request_Should_Send_Allowed_Payment_Method_Types_Not_Payment_Method_Types()
         {
             // preparation
-            RecordingHandler handler = new();
-            StripeClient client = new("sk_test_123", httpClient: new SystemNetHttpClient(new HttpClient(handler)));
+            using RecordingHandler handler = new();
+            using HttpClient httpClient = new(handler);
+            StripeClient client = new("sk_test_123", httpClient: new SystemNetHttpClient(httpClient));
 
             // execution
             await Assert.ThrowsAnyAsync<StripeException>(() => new SessionService(client).CreateAsync(
@@ -49,7 +50,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe.UnitTests
                 {
                     Mode = "payment",
                     AllowedPaymentMethodTypes = StripePaymentMethodTypes.Parse("card, ideal"),
-                }));
+                })).ConfigureAwait(false);
 
             // asserts
             handler.Body.Should().Contain("allowed_payment_method_types[0]=card");
@@ -63,8 +64,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe.UnitTests
         public async Task Payment_Intent_Request_Should_Send_Allowed_Payment_Method_Types_Not_Payment_Method_Types()
         {
             // preparation
-            RecordingHandler handler = new();
-            StripeClient client = new("sk_test_123", httpClient: new SystemNetHttpClient(new HttpClient(handler)));
+            using RecordingHandler handler = new();
+            using HttpClient httpClient = new(handler);
+            StripeClient client = new("sk_test_123", httpClient: new SystemNetHttpClient(httpClient));
 
             // execution
             await Assert.ThrowsAnyAsync<StripeException>(() => new PaymentIntentService(client).CreateAsync(
@@ -73,7 +75,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe.UnitTests
                     Amount = 1000,
                     Currency = "eur",
                     AllowedPaymentMethodTypes = StripePaymentMethodTypes.Parse(null),
-                }));
+                })).ConfigureAwait(false);
 
             // asserts
             handler.Body.Should().Contain("allowed_payment_method_types[0]=card");

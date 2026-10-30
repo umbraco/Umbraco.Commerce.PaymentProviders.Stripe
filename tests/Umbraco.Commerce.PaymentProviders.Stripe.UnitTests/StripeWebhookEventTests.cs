@@ -44,6 +44,9 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe.UnitTests
         [InlineData("2025-11-17.clover")]
         [InlineData("2026-03-25.dahlia")]
         [InlineData("2026-10-28.endive")]
+        // The provider validates the signature with EventUtility.ValidateSignature and reads only id, type and the
+        // object id itself, rather than EventUtility.ConstructEvent, which throws when the webhook endpoint's API
+        // version differs from Stripe.net's pinned one. Keep it that way so merchants needn't upgrade their endpoints.
         public void Should_Deserialize_Regardless_Of_Webhook_Endpoint_Api_Version(string apiVersion)
         {
             // preparation

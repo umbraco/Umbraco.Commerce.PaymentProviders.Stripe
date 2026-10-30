@@ -395,8 +395,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
                             var invoice = subscription.LatestInvoice;
-                            var defaultPayment = invoice.Payments.FirstOrDefault(x => x.IsDefault)
-                                ?? invoice.Payments.LastOrDefault();
+                            var defaultPayment = SelectDefaultPayment(invoice.Payments);
                             if (defaultPayment != null)
                             {
                                 var paymentIntentService = new PaymentIntentService();
@@ -721,6 +720,10 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe
                 && !string.IsNullOrWhiteSpace(props[propAlias])
                 && (props[propAlias] == "1" || props[propAlias].Value.Equals("true", StringComparison.OrdinalIgnoreCase));
         }
+
+        // The invoice payment whose payment intent settles the order: the default one, else the latest.
+        internal static InvoicePayment SelectDefaultPayment(IEnumerable<InvoicePayment> payments)
+            => payments.FirstOrDefault(x => x.IsDefault) ?? payments.LastOrDefault();
 
         private async Task<Customer> GetOrCreateStripeCustomerAsync(PaymentProviderContext<StripeCheckoutSettings> ctx)
         {

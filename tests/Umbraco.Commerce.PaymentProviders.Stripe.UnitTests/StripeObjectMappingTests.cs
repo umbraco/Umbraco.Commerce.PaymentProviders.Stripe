@@ -211,7 +211,7 @@ namespace Umbraco.Commerce.PaymentProviders.Stripe.UnitTests
             invoice.Status.Should().Be("paid");
             invoice.Payments.Should().HaveCount(2);
 
-            InvoicePayment? defaultPayment = invoice.Payments.FirstOrDefault(x => x.IsDefault) ?? invoice.Payments.LastOrDefault();
+            InvoicePayment? defaultPayment = StripeCheckoutPaymentProvider.SelectDefaultPayment(invoice.Payments);
             defaultPayment!.Payment.PaymentIntentId.Should().Be("pi_3Qabc123");
         }
 
