@@ -11,6 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Stripe.net" Version="[53.1.0, 53.999.999)" />
-    <PackageVersion Include="Umbraco.Commerce.Core" Version="[19.0.0-beta.1, 19.999.999)" />
+    <PackageVersion Include="Umbraco.Commerce.Core" Version="[19.0.0-rc.1, 19.999.999)" />
   </ItemGroup>
 </Project>
